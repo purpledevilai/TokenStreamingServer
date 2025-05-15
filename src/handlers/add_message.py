@@ -1,3 +1,4 @@
+import uuid
 from Models import Context
 from LLM.BaseMessagesConverter import base_messages_to_dict_messages
 from lib.Connection import Connection
@@ -24,9 +25,12 @@ async def add_message(connection_id: str, message: str):
     # Invoke the agent chat stream
     token_stream = agent.add_human_message_and_invoke(message)
 
+    # Generate uuid for the response
+    response_id = str(uuid.uuid4())
+
     # Stream tokens
     for token in token_stream:
-        await connection.peer.call(method="on_token", params={"token": token})
+        await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
 
     # Save the new message to context 
     connection.context.messages = base_messages_to_dict_messages(connection.agent_chat.messages)
@@ -34,6 +38,6 @@ async def add_message(connection_id: str, message: str):
 
     # Check if there are chat events to send
     if (agent.context.get("events")):
-        await connection.peer.call(method="on_events", params={"events": agent.context["events"]})
+        await connection.peer.call(method="on_events", params={"events": agent.context["events"], "response_id": response_id})
         agent.context["events"] = []
     

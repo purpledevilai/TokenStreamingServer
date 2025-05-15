@@ -66,6 +66,8 @@ class JSONRPCPeer:
             if not handler:
                 print("Error: no handler for message", parsed_message)
                 return
+            
+            print("Method called: ", parsed_message["method"])
 
             if not parsed_message.get("id"):
                 await handler(**parsed_message["params"])

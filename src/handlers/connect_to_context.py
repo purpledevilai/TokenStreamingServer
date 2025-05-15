@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from lib.Connection import Connection
 from stores.connections import CONNECTIONS
 from AWS import Cognito
@@ -8,7 +9,7 @@ from LLM.CreateLLM import create_llm
 from LLM.BaseMessagesConverter import dict_messages_to_base_messages
 
 
-async def connect_to_context(connection_id: str, access_token: str, context_id: str):
+async def connect_to_context(connection_id: str, context_id: str, access_token: str = None):
 
     # Set the user if access_token is provided
     user = None
@@ -65,6 +66,9 @@ async def send_first_message(connection: Connection):
     # Get the agent
     agent = connection.agent_chat
 
+    # Generate uuid for the response
+    response_id = str(uuid.uuid4())
+
     # Stream tokens from agent invocation
     for token in agent.invoke():
-        await connection.peer.call(method="on_token", params={"token": token})
+        await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
