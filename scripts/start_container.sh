@@ -2,10 +2,10 @@
 
 
 # Docker run
-docker run -p 8083:8083 \
-  --name transcription-server-container \
+docker run -p 8084:8084 \
+  --name token-streaming-server-container \
   -it \
   --env-file .env \
   -e PYTHONUNBUFFERED=1 \
   -v $(pwd)/src:/app \
-  transcription-server-image
+  token-streaming-server-image

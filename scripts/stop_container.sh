@@ -1,5 +1,5 @@
 #!/bin/bash
 
 
-docker stop transcription-server-container
-docker rm transcription-server-container
+docker stop token-streaming-server-container
+docker rm token-streaming-server-container

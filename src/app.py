@@ -2,6 +2,8 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from lib.Connection import Connection
 from stores.connections import CONNECTIONS
+from handlers.connect_to_context import connect_to_context
+from handlers.add_message import add_message
 
 app = FastAPI()
 
@@ -23,12 +25,9 @@ async def health():
 async def websocket_endpoint(websocket: WebSocket):
     connection = Connection(websocket)
     CONNECTIONS[connection.id] = connection
-
-    async def handle_ping(connection_id: str):
-        print(f"[{connection_id}] got ping")
-        return {"pong": True, "connection_id": connection_id}
     
-    connection.on("ping", handle_ping)
+    connection.on("connect_to_context", connect_to_context)
+    connection.on("add_message", add_message)
 
     try:
         await connection.start()

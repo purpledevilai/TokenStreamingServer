@@ -2,6 +2,8 @@ import uuid
 from typing import Callable, Dict, Any, Optional, Awaitable
 from fastapi import WebSocket
 from lib.JSONRPCPeer import JSONRPCPeer
+from Models.Context import Context
+from LLM.TokenStreamingAgentChat import TokenStreamingAgentChat
 
 
 class Connection:
@@ -9,6 +11,8 @@ class Connection:
         self.websocket = websocket
         self.id = str(uuid.uuid4())
         self.peer = JSONRPCPeer(sender=self.send)
+        self.context: Context = None
+        self.agent_chat: TokenStreamingAgentChat = None
 
     async def send(self, message: str):
         await self.websocket.send_text(message)
