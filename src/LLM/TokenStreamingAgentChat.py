@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Callable, Awaitable, Optional
 import json
 from LLM.AgentTool import AgentTool
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -19,10 +19,14 @@ class TokenStreamingAgentChat:
         tools: List[AgentTool] = None,
         messages: List[BaseMessage] = [],
         context: dict = {},
+        on_tool_call: Optional[Callable[[str, str, dict], Awaitable[None]]] = None,
+        on_tool_response: Optional[Callable[[str, str, str], Awaitable[None]]] = None,
     ):
         # Instance variables
         self.messages = messages
         self.context = context
+        self.on_tool_call = on_tool_call
+        self.on_tool_response = on_tool_response
 
         # Prompt Arguments
         if context.get("prompt_args") and context["prompt_args"]:
@@ -56,7 +60,7 @@ class TokenStreamingAgentChat:
     # -- Invoke -- #
     #              #
     ################
-    def invoke(self):
+    async def invoke(self):
 
         # placeholder vars for tool calls if any
         tool_calls = {}
@@ -133,14 +137,31 @@ class TokenStreamingAgentChat:
                 # Args
                 tool_call['args'] = json.loads(tool_call['args'])
 
-                # Call the function
+                # Get the tool
                 tool = self.name_to_tool[tool_call["name"]]
+
+                # Notify callback if provided
+                if self.on_tool_call:
+                    await self.on_tool_call(
+                        id=tool_call_id,
+                        tool_name=tool_call['name'],
+                        tool_input=tool_call['args']
+                    )
+
                 tool_response = tool.function(
                     **tool_call['args'],
                     context=self.context # Either pass context
                 ) if tool.pass_context else tool.function(
                     **tool_call['args'] # or not
                 )
+
+                # Notify callback if provided
+                if self.on_tool_response:
+                    await self.on_tool_response(
+                        id=tool_call_id,
+                        tool_name=tool_call['name'],
+                        tool_output=tool_response
+                    )
 
                 # Create the tool message
                 tool_message = ToolMessage(
@@ -159,13 +180,13 @@ class TokenStreamingAgentChat:
             self.messages.append(tool_message)
 
         # 3.c) With the AI and Tool Messages added, invoke again, recursively
-        return self.invoke()
+        return await self.invoke()
 
     ######################################
     #                                    #
     # -- Add Human Message and Invoke -- #
     #                                    #
     ######################################
-    def add_human_message_and_invoke(self, message: str):
+    async def add_human_message_and_invoke(self, message: str):
         self.messages.append(HumanMessage(content=message))
-        return self.invoke()
+        return await self.invoke()

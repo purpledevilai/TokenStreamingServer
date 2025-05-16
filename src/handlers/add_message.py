@@ -23,7 +23,7 @@ async def add_message(connection_id: str, message: str):
     agent = connection.agent_chat
     
     # Invoke the agent chat stream
-    token_stream = agent.add_human_message_and_invoke(message)
+    token_stream = await agent.add_human_message_and_invoke(message)
 
     # Generate uuid for the response
     response_id = str(uuid.uuid4())

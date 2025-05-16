@@ -11,6 +11,9 @@ from LLM.BaseMessagesConverter import dict_messages_to_base_messages
 
 async def connect_to_context(connection_id: str, context_id: str, access_token: str = None):
 
+    # Get the connection - used later
+    connection = CONNECTIONS[connection_id]
+
     # Set the user if access_token is provided
     user = None
     if access_token:
@@ -36,17 +39,42 @@ async def connect_to_context(connection_id: str, context_id: str, access_token: 
     # Context dict - passed to agent for events
     context_dict = context.model_dump()
 
+    # Tool call listener - tool call notification used in agent
+    async def on_tool_call(id, tool_name, tool_input):
+        print(f"Tool call: {id} {tool_name} {tool_input}")
+        await connection.peer.call(
+            method="on_tool_call",
+            params={
+                "tool_call_id": id,
+                "tool_name": tool_name,
+                "tool_input": tool_input,
+            }
+        )
+
+    # Tool response listener - tool response notification used in agent
+    async def on_tool_response(id, tool_name, tool_output):
+        print(f"Tool response: {id} {tool_name} {tool_output}")
+        await connection.peer.call(
+            method="on_tool_response",
+            params={
+                "tool_call_id": id,
+                "tool_name": tool_name,
+                "tool_output": tool_output,
+            }
+        )
+
     # Create the agent chat stream
     agent_chat = TokenStreamingAgentChat(
         create_llm(),
         agent.prompt,
         messages=dict_messages_to_base_messages(context.messages),
         tools=[Tool.get_agent_tool_with_id(tool) for tool in agent.tools] if agent.tools else [],
-        context=context_dict
+        context=context_dict,
+        on_tool_call=on_tool_call,
+        on_tool_response=on_tool_response
     )
 
     # Set the connection's context and agent_chat - used later in message calls
-    connection = CONNECTIONS[connection_id]
     connection.context = context
     connection.agent_chat = agent_chat
 
@@ -70,5 +98,5 @@ async def send_first_message(connection: Connection):
     response_id = str(uuid.uuid4())
 
     # Stream tokens from agent invocation
-    for token in agent.invoke():
+    for token in await agent.invoke():
         await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
