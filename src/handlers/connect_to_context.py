@@ -6,7 +6,7 @@ from AWS import Cognito
 from Models import User, Context, Agent, Tool
 from LLM.TokenStreamingAgentChat import TokenStreamingAgentChat
 from LLM.CreateLLM import create_llm
-from LLM.BaseMessagesConverter import dict_messages_to_base_messages
+from LLM.BaseMessagesConverter import base_messages_to_dict_messages, dict_messages_to_base_messages
 
 
 async def connect_to_context(connection_id: str, context_id: str, access_token: str = None):
@@ -100,3 +100,7 @@ async def send_first_message(connection: Connection):
     # Stream tokens from agent invocation
     for token in await agent.invoke():
         await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
+
+    # Save the new message to context 
+    connection.context.messages = base_messages_to_dict_messages(connection.agent_chat.messages)
+    Context.save_context(connection.context)
