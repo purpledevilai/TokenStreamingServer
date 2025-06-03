@@ -87,6 +87,7 @@ async def connect_to_context(connection_id: str, context_id: str, access_token: 
     return {
         "success": True,
         "agent_speaks_first": generate_first_message,
+        "agent": agent.model_dump(),
     }
 
     
