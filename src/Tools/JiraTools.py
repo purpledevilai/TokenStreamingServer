@@ -20,11 +20,29 @@ class JiraCreateIssueParams(BaseModel):
 def jira_create_issue_func(project_key: str, summary: str, description: str, issue_type: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
+        
+        # Convert plain text description to Atlassian Document Format
+        description_adf = {
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": description
+                        }
+                    ]
+                }
+            ]
+        }
+        
         issue_data = {
             "fields": {
                 "project": {"key": project_key},
                 "summary": summary,
-                "description": description,
+                "description": description_adf,
                 "issuetype": {"name": issue_type},
             }
         }
@@ -81,7 +99,22 @@ def jira_update_issue_func(issue_id: str, summary: str | None, description: str 
         if summary is not None:
             fields["summary"] = summary
         if description is not None:
-            fields["description"] = description
+            # Convert plain text description to Atlassian Document Format
+            fields["description"] = {
+                "type": "doc",
+                "version": 1,
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": description
+                            }
+                        ]
+                    }
+                ]
+            }
         data = {"fields": fields}
         res = JiraService.update_issue(user, issue_id, data)
         return json.dumps(res)
