@@ -1,5 +1,6 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Query
 from fastapi.middleware.cors import CORSMiddleware
+import os
 from lib.Connection import Connection
 from stores.connections import CONNECTIONS
 from handlers.connect_to_context import connect_to_context
@@ -18,7 +19,23 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "num_connections": len(CONNECTIONS),
+    }
+
+@app.get("/reset")
+async def reset(key: str = Query(default=None)):
+    # Check that key in query params is correct
+    if key != os.environ.get("RESET_KEY"):
+        return
+    global CONNECTIONS
+    CONNECTIONS = {}
+    return {
+        "status": "ok",
+        "message": "Connections reset successfully",
+        "num_connections": len(CONNECTIONS),
+    }
 
 
 @app.websocket("/ws")
