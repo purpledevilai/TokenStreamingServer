@@ -99,9 +99,10 @@ async def send_first_message(connection: Connection):
     response_id = str(uuid.uuid4())
 
     # Stream tokens from agent invocation
-    for token in await agent.invoke():
+    token_stream = await agent.invoke()
+    async for token in token_stream:
         await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
 
     # Save the new message to context 
     connection.context.messages = base_messages_to_dict_messages(connection.agent_chat.messages)
-    Context.save_context(connection.context)
+    await asyncio.to_thread(Context.save_context, connection.context)
