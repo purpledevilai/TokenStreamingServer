@@ -40,18 +40,23 @@ class AgentChat:
     self.prompt_chain = chat_prompt_template | llm
 
   async def invoke(self):
-    response = self.prompt_chain.invoke({"messages": self.messages})
+    """Invoke the chain asynchronously so we don't block the event loop."""
+    response = await self.prompt_chain.ainvoke({"messages": self.messages})
     self.messages.append(response)
     if len(response.tool_calls) > 0:
       for tool_call in response.tool_calls:
         try:
           tool = self.name_to_tool[tool_call["name"]]
-          tool_response = await tool.function(**tool_call['args'], context=self.context) if tool.pass_context else tool.function(**tool_call['args'])
+          tool_response = await (tool.function(**tool_call['args'], context=self.context)
+                                 if tool.pass_context else
+                                 tool.function(**tool_call['args']))
           tool_message = ToolMessage(tool_call_id=tool_call['id'], content=tool_response)
         except Exception as e:
-          tool_message = ToolMessage(tool_call_id=tool_call['id'], content=f"Issue calling tool: {tool_call['name']}, error: {e}")
+          tool_message = ToolMessage(
+              tool_call_id=tool_call['id'],
+              content=f"Issue calling tool: {tool_call['name']}, error: {e}")
         self.messages.append(tool_message)
-      return self.invoke()
+      return await self.invoke()
     return response.content
 
   async def add_human_message_and_invoke(self, message: str):

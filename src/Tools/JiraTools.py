@@ -3,6 +3,7 @@ from LLM.AgentChat import AgentTool
 from Models import User
 from Services import JiraService
 import json
+import asyncio
 
 
 class JiraCreateIssueParams(BaseModel):
@@ -46,7 +47,10 @@ async def jira_create_issue_func(project_key: str, summary: str, description: st
                 "issuetype": {"name": issue_type},
             }
         }
-        res = JiraService.create_issue(user, issue_data)
+        # JiraService uses the synchronous `requests` library which can block
+        # the event loop. Run the blocking call in a thread so websocket
+        # heartbeat messages can still be processed.
+        res = await asyncio.to_thread(JiraService.create_issue, user, issue_data)
         return json.dumps(res)
     except Exception as e:
         return f"Error creating issue: {e}"
@@ -72,7 +76,7 @@ class JiraSearchIssuesParams(BaseModel):
 async def jira_search_issues_func(jql: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
-        res = JiraService.search_issues(user, jql=jql)
+        res = await asyncio.to_thread(JiraService.search_issues, user, jql=jql)
         return json.dumps(res)
     except Exception as e:
         return f"Error searching issues: {e}"
@@ -116,7 +120,7 @@ async def jira_update_issue_func(issue_id: str, summary: str | None, description
                 ]
             }
         data = {"fields": fields}
-        res = JiraService.update_issue(user, issue_id, data)
+        res = await asyncio.to_thread(JiraService.update_issue, user, issue_id, data)
         return json.dumps(res)
     except Exception as e:
         return f"Error updating issue: {e}"
@@ -138,7 +142,9 @@ class JiraTransitionIssueParams(BaseModel):
 async def jira_transition_issue_func(issue_id: str, transition_id: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
-        res = JiraService.transition_issue(user, issue_id, transition_id)
+        res = await asyncio.to_thread(
+            JiraService.transition_issue, user, issue_id, transition_id
+        )
         return json.dumps(res)
     except Exception as e:
         return f"Error transitioning issue: {e}"
@@ -160,7 +166,9 @@ class JiraAssignIssueParams(BaseModel):
 async def jira_assign_issue_func(issue_id: str, account_id: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
-        res = JiraService.assign_issue(user, issue_id, account_id)
+        res = await asyncio.to_thread(
+            JiraService.assign_issue, user, issue_id, account_id
+        )
         return json.dumps(res)
     except Exception as e:
         return f"Error assigning issue: {e}"
@@ -181,7 +189,7 @@ class JiraUnassignIssueParams(BaseModel):
 async def jira_unassign_issue_func(issue_id: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
-        res = JiraService.unassign_issue(user, issue_id)
+        res = await asyncio.to_thread(JiraService.unassign_issue, user, issue_id)
         return json.dumps(res)
     except Exception as e:
         return f"Error unassigning issue: {e}"
@@ -202,7 +210,7 @@ class JiraGetSprintsParams(BaseModel):
 async def jira_get_sprints_func(board_id: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
-        res = JiraService.list_sprints(user, board_id)
+        res = await asyncio.to_thread(JiraService.list_sprints, user, board_id)
         return json.dumps(res)
     except Exception as e:
         return f"Error getting sprints: {e}"
@@ -223,7 +231,9 @@ class JiraGetSprintIssuesParams(BaseModel):
 async def jira_get_sprint_issues_func(sprint_id: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
-        res = JiraService.get_sprint_issues(user, sprint_id)
+        res = await asyncio.to_thread(
+            JiraService.get_sprint_issues, user, sprint_id
+        )
         return json.dumps(res)
     except Exception as e:
         return f"Error getting sprint issues: {e}"
