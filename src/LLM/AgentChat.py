@@ -39,14 +39,14 @@ class AgentChat:
       llm = llm.bind_tools(tool_params_list)
     self.prompt_chain = chat_prompt_template | llm
 
-  def invoke(self):
+  async def invoke(self):
     response = self.prompt_chain.invoke({"messages": self.messages})
     self.messages.append(response)
     if len(response.tool_calls) > 0:
       for tool_call in response.tool_calls:
         try:
           tool = self.name_to_tool[tool_call["name"]]
-          tool_response = tool.function(**tool_call['args'], context=self.context) if tool.pass_context else tool.function(**tool_call['args'])
+          tool_response = await tool.function(**tool_call['args'], context=self.context) if tool.pass_context else tool.function(**tool_call['args'])
           tool_message = ToolMessage(tool_call_id=tool_call['id'], content=tool_response)
         except Exception as e:
           tool_message = ToolMessage(tool_call_id=tool_call['id'], content=f"Issue calling tool: {tool_call['name']}, error: {e}")
@@ -54,6 +54,6 @@ class AgentChat:
       return self.invoke()
     return response.content
 
-  def add_human_message_and_invoke(self, message: str):
+  async def add_human_message_and_invoke(self, message: str):
     self.messages.append(HumanMessage(content=message))
-    return self.invoke()
+    return await self.invoke()

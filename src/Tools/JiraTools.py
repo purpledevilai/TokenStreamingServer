@@ -17,7 +17,7 @@ class JiraCreateIssueParams(BaseModel):
     issue_type: str = Field(default="Task", description="Type of the issue (e.g., 'Task', 'Bug', 'Story', 'Epic')")
 
 
-def jira_create_issue_func(project_key: str, summary: str, description: str, issue_type: str, context: dict) -> str:
+async def jira_create_issue_func(project_key: str, summary: str, description: str, issue_type: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
         
@@ -69,7 +69,7 @@ class JiraSearchIssuesParams(BaseModel):
     jql: str = Field(description="Jira Query Language string to search issues (e.g., 'project = PROJ AND status = \"In Progress\"')")
 
 
-def jira_search_issues_func(jql: str, context: dict) -> str:
+async def jira_search_issues_func(jql: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
         res = JiraService.search_issues(user, jql=jql)
@@ -92,7 +92,7 @@ class JiraUpdateIssueParams(BaseModel):
     description: str | None = Field(default=None, description="New description text for the issue (leave as None to keep unchanged)")
 
 
-def jira_update_issue_func(issue_id: str, summary: str | None, description: str | None, context: dict) -> str:
+async def jira_update_issue_func(issue_id: str, summary: str | None, description: str | None, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
         fields = {}
@@ -135,7 +135,7 @@ class JiraTransitionIssueParams(BaseModel):
     transition_id: str = Field(description="ID of the transition to apply (use JiraSearchIssues first to find valid transition IDs)")
 
 
-def jira_transition_issue_func(issue_id: str, transition_id: str, context: dict) -> str:
+async def jira_transition_issue_func(issue_id: str, transition_id: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
         res = JiraService.transition_issue(user, issue_id, transition_id)
@@ -157,7 +157,7 @@ class JiraAssignIssueParams(BaseModel):
     account_id: str = Field(description="Account ID of the user to assign the issue to (e.g., '5b10a2844c20165700ede21g')")
 
 
-def jira_assign_issue_func(issue_id: str, account_id: str, context: dict) -> str:
+async def jira_assign_issue_func(issue_id: str, account_id: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
         res = JiraService.assign_issue(user, issue_id, account_id)
@@ -178,7 +178,7 @@ class JiraUnassignIssueParams(BaseModel):
     issue_id: str = Field(description="ID or key of the issue to unassign (e.g., 'PROJ-123')")
 
 
-def jira_unassign_issue_func(issue_id: str, context: dict) -> str:
+async def jira_unassign_issue_func(issue_id: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
         res = JiraService.unassign_issue(user, issue_id)
@@ -199,7 +199,7 @@ class JiraGetSprintsParams(BaseModel):
     board_id: str = Field(description="ID of the Jira board (e.g., '123')")
 
 
-def jira_get_sprints_func(board_id: str, context: dict) -> str:
+async def jira_get_sprints_func(board_id: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
         res = JiraService.list_sprints(user, board_id)
@@ -220,7 +220,7 @@ class JiraGetSprintIssuesParams(BaseModel):
     sprint_id: str = Field(description="ID of the sprint to retrieve issues from (e.g., '456')")
 
 
-def jira_get_sprint_issues_func(sprint_id: str, context: dict) -> str:
+async def jira_get_sprint_issues_func(sprint_id: str, context: dict) -> str:
     try:
         user = User.get_user(context["user_id"])
         res = JiraService.get_sprint_issues(user, sprint_id)

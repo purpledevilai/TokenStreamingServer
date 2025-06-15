@@ -148,10 +148,10 @@ class TokenStreamingAgentChat:
                         tool_input=tool_call['args']
                     )
 
-                tool_response = tool.function(
+                tool_response = await tool.function(
                     **tool_call['args'],
                     context=self.context # Either pass context
-                ) if tool.pass_context else tool.function(
+                ) if tool.pass_context else await tool.function(
                     **tool_call['args'] # or not
                 )
 

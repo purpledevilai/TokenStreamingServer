@@ -7,7 +7,7 @@ class pass_event(BaseModel):
   data: str = Field(description="The data to be passed with the event")
 
 # Function params must match base model params
-def pass_event_func(type: str, data: str, context: dict) -> str:
+async def pass_event_func(type: str, data: str, context: dict) -> str:
   if "events" not in context:
     context["events"] = []
   context["events"].append({

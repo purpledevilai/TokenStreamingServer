@@ -94,7 +94,7 @@ def get_agent_tool_with_id(tool_id: str) -> AgentTool:
         docstring=tool.description
     )
 
-    def custom_code_lambda_invoke(**kwargs):
+    async def custom_code_lambda_invoke(**kwargs):
         response = invoke_lambda(
             lambda_name="execution-lambda",
             event={
