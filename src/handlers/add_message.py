@@ -28,8 +28,8 @@ async def add_message(connection_id: str, message: str):
     # Generate uuid for the response
     response_id = str(uuid.uuid4())
 
-    # Stream tokens
-    for token in token_stream:
+    # Stream tokens - now using async for since token_stream is an async generator
+    async for token in token_stream:
         await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
 
     # Save the new message to context 
@@ -40,4 +40,3 @@ async def add_message(connection_id: str, message: str):
     if (agent.context.get("events")):
         await connection.peer.call(method="on_events", params={"events": agent.context["events"], "response_id": response_id})
         agent.context["events"] = []
-    

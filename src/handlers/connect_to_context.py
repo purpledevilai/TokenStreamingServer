@@ -98,8 +98,9 @@ async def send_first_message(connection: Connection):
     # Generate uuid for the response
     response_id = str(uuid.uuid4())
 
-    # Stream tokens from agent invocation
-    for token in await agent.invoke():
+    # Stream tokens from agent invocation - now using async for
+    token_stream = await agent.invoke()
+    async for token in token_stream:
         await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
 
     # Save the new message to context 

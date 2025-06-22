@@ -66,42 +66,44 @@ class TokenStreamingAgentChat:
         tool_calls = {}
         currently_collecting_tool_id = ""
 
-        # Start the stream!
-        response_generator = self.prompt_chain.stream({"messages": self.messages})
+        # Start the async stream!
+        response_generator = self.prompt_chain.astream({"messages": self.messages})
+        print(f"Created response generator")
 
-        # Iterate through stream chunks
-        for chunk in response_generator:
+        # Iterate through stream chunks with async for
+        async for chunk in response_generator:
+            print(f"Received chunk")
 
             # 1.) Content -  means its a response for the human!
             if chunk.content:
 
-                # Recreate the whole generator, including first chunk
-                def prepended_generator():
+                # Create an async generator for the response
+                async def async_response_generator():
                     # Initialize ai message
                     ai_message = ''
 
-                    # Add and send
+                    # Add and send first chunk
                     ai_message += chunk.content
                     yield chunk.content
 
                     # Then for each other chunk, add and send
-                    for res_chunk in response_generator:
+                    async for res_chunk in response_generator:
                         ai_message += res_chunk.content
                         yield res_chunk.content
 
-                    # Add message
+                    # Add message after streaming is complete
                     self.messages.append(AIMessage(content=ai_message))
 
-                # Return the generator
-                return prepended_generator()
+                # Return the async generator
+                return async_response_generator()
 
-            # 2.) Tool call chunks - means we're going to recieve tool chunks
+            # 2.) Tool call chunks - means we're going to receive tool chunks
             elif chunk.tool_call_chunks:
 
                 # All tool chunks have always been in first index...
                 tool_chunk = chunk.tool_call_chunks[0]
 
-                # 2.a) Tool Chunk ID - First chunk contians tool name and ID, arg chunks will follow.
+                # 2.a) Tool Chunk ID - First chunk contains tool name and ID, arg chunks will follow.
                 if tool_chunk['id']:
                     currently_collecting_tool_id = tool_chunk['id']
                     tool_calls[currently_collecting_tool_id] = {
@@ -115,7 +117,7 @@ class TokenStreamingAgentChat:
 
         # 3.) Tool Section - We didn't return the content stream in section 1. This means we have tools to call
 
-        # 3.a ) Add tool call message to messages
+        # 3.a) Add tool call message to messages
         self.messages.append(AIMessage(
             content='',
             additional_kwargs={
