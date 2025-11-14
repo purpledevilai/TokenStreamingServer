@@ -6,3 +6,4 @@ boto3==1.37.15
 langchain==0.3.19
 langchain-openai==0.3.6
 beautifulsoup4==4.13.4
+PyJWT==2.10.1

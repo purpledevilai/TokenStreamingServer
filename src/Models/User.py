@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from AWS.DynamoDB import get_item, put_item, delete_item
 from pydantic import BaseModel
+from Models import APIKey
 
 USERS_TABLE_NAME = os.environ["USERS_TABLE_NAME"]
 USERS_PRIMARY_KEY = os.environ["USERS_PRIMARY_KEY"]
@@ -27,10 +28,28 @@ def create_user(user_id: str) -> User:
     return user
 
 def get_user(user_id: str) -> User:
+    # Try to get from Users table first
     item = get_item(USERS_TABLE_NAME, USERS_PRIMARY_KEY, user_id)
-    if item is None:
-        raise Exception(f"User with id: {user_id} does not exist")
-    return User(**item)
+    if item is not None:
+        return User(**item)
+    
+    # If not found, try API Keys table (for API key authentication)
+    try:
+        api_key = APIKey.get_api_key(user_id)
+        
+        # Only return mocked user if API key is valid
+        if api_key.valid:
+            # Create a mocked User with the API key's details
+            return User(
+                user_id=api_key.user_id,  # Use the user_id from the API key
+                organizations=[api_key.org_id],
+                created_at=api_key.created_at,
+                updated_at=api_key.updated_at
+            )
+    except Exception:
+        pass  # API key not found, proceed to raise user not found error
+    
+    raise Exception(f"User with id: {user_id} does not exist")
 
 def save_user(user: User) -> None:
     user.updated_at = int(datetime.timestamp(datetime.now()))

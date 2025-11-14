@@ -3,7 +3,7 @@ import uuid
 from lib.Connection import Connection
 from stores.connections import CONNECTIONS
 from AWS import Cognito
-from Models import User, Context, Agent, Tool
+from Models import User, Context, Agent, Tool, APIKey
 from LLM.TokenStreamingAgentChat import TokenStreamingAgentChat
 from LLM.CreateLLM import create_llm
 from LLM.BaseMessagesConverter import base_messages_to_dict_messages, dict_messages_to_base_messages
@@ -17,8 +17,15 @@ async def connect_to_context(connection_id: str, context_id: str, access_token: 
     # Set the user if access_token is provided
     user = None
     if access_token:
-        cognito_user = Cognito.get_user_from_cognito(access_token)
-        user = User.get_user(cognito_user.sub)
+        # Try API key authentication first
+        if APIKey.validate_api_key(access_token):
+            contents = APIKey.get_api_key_contents(access_token)
+            user = User.get_user(contents["user_id"])
+        else:
+            # Fall back to Cognito authentication
+            cognito_user = Cognito.get_user_from_cognito(access_token)
+            user = User.get_user(cognito_user.sub)
+        
 
     # Get the context id
     if (context_id == None):

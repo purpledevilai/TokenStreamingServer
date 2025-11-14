@@ -4,6 +4,7 @@ from LLM.AgentTool import AgentTool
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, BaseMessage, ToolMessage, AIMessage
+from Models import DataWindow
 
 
 class TokenStreamingAgentChat:
@@ -60,7 +61,11 @@ class TokenStreamingAgentChat:
     # -- Invoke -- #
     #              #
     ################
-    async def invoke(self):
+    async def invoke(self, load_data_windows: bool = True):
+
+        # Refresh data windows if enabled
+        if load_data_windows:
+            self._refresh_data_windows()
 
         # placeholder vars for tool calls if any
         tool_calls = {}
@@ -182,7 +187,7 @@ class TokenStreamingAgentChat:
             self.messages.append(tool_message)
 
         # 3.c) With the AI and Tool Messages added, invoke again, recursively
-        return await self.invoke()
+        return await self.invoke(load_data_windows=False)
 
     ######################################
     #                                    #
@@ -192,3 +197,41 @@ class TokenStreamingAgentChat:
     async def add_human_message_and_invoke(self, message: str):
         self.messages.append(HumanMessage(content=message))
         return await self.invoke()
+
+
+    ##############################
+    #                            #
+    # -- Refresh Data Windows -- #
+    #                            #
+    ##############################
+    def _refresh_data_windows(self):
+        """
+        Refresh all DataWindow tool messages with fresh data from the database.
+        Scans through messages to find open_data_window tool calls and updates their corresponding ToolMessages.
+        """
+        
+        # Build a mapping of tool_call_id -> (message_index, data_window_id)
+        datawindow_mapping = {}
+        
+        for i, message in enumerate(self.messages):
+            # Check if this is an AI message with tool calls
+            if isinstance(message, AIMessage) and hasattr(message, 'tool_calls') and message.tool_calls:
+                for tool_call in message.tool_calls:
+                    if tool_call.get("name") == "open_data_window":
+                        tool_call_id = tool_call.get("id")
+                        data_window_id = tool_call.get("args", {}).get("data_window_id")
+                        
+                        if tool_call_id and data_window_id:
+                            # Find the corresponding ToolMessage
+                            for j in range(i + 1, len(self.messages)):
+                                if isinstance(self.messages[j], ToolMessage) and self.messages[j].tool_call_id == tool_call_id:
+                                    datawindow_mapping[tool_call_id] = (j, data_window_id)
+                                    break
+        
+        # Fetch and update DataWindows
+        for tool_call_id, (msg_index, data_window_id) in datawindow_mapping.items():
+            try:
+                data_window = DataWindow.get_data_window(data_window_id)
+                self.messages[msg_index].content = data_window.data
+            except Exception as e:
+                self.messages[msg_index].content = f"Error refreshing DataWindow: {e}"

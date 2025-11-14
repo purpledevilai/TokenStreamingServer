@@ -17,6 +17,7 @@ class StructuredResponseEndpoint(BaseModel):
     description: Optional[str] = None
     pd_id: str
     is_public: bool
+    prompt_template: Optional[str] = None
     created_at: int
     updated_at: int
 
@@ -27,6 +28,7 @@ class CreateSREParams(BaseModel):
     description: Optional[str] = None
     pd_id: str
     is_public: bool = False
+    prompt_template: str = "{prompt}"
 
 
 class UpdateSREParams(BaseModel):
@@ -34,13 +36,14 @@ class UpdateSREParams(BaseModel):
     description: Optional[str] = None
     pd_id: Optional[str] = None
     is_public: Optional[bool] = None
+    prompt_template: Optional[str] = None
 
 
 def sre_exists(sre_id: str) -> bool:
     return get_item(SRE_TABLE_NAME, SRE_PRIMARY_KEY, sre_id) is not None
 
 
-def create_sre(org_id: str, name: str, description: Optional[str], pd_id: str, is_public: bool = False) -> StructuredResponseEndpoint:
+def create_sre(org_id: str, name: str, description: Optional[str], pd_id: str, is_public: bool = False, prompt_template: str = "{prompt}") -> StructuredResponseEndpoint:
     sre_id = str(uuid.uuid4())
     created_at = int(datetime.now().timestamp())
     updated_at = created_at
@@ -51,6 +54,7 @@ def create_sre(org_id: str, name: str, description: Optional[str], pd_id: str, i
         description=description,
         pd_id=pd_id,
         is_public=is_public,
+        prompt_template=prompt_template,
         created_at=created_at,
         updated_at=updated_at
     )
@@ -62,6 +66,8 @@ def get_sre(sre_id: str) -> StructuredResponseEndpoint:
     item = get_item(SRE_TABLE_NAME, SRE_PRIMARY_KEY, sre_id)
     if item is None:
         raise Exception(f"SRE {sre_id} not found", 404)
+    if "prompt_template" not in item:
+        item["prompt_template"] = "{prompt}"
     return StructuredResponseEndpoint(**item)
 
 
@@ -99,4 +105,8 @@ def delete_sre(sre_id: str) -> None:
 
 
 def get_sres_for_org(org_id: str) -> list[StructuredResponseEndpoint]:
-    return [StructuredResponseEndpoint(**item) for item in get_all_items_by_index(SRE_TABLE_NAME, "org_id", org_id)]
+    items = get_all_items_by_index(SRE_TABLE_NAME, "org_id", org_id)
+    for item in items:
+        if "prompt_template" not in item:
+            item["prompt_template"] = "{prompt}"
+    return [StructuredResponseEndpoint(**item) for item in items]
