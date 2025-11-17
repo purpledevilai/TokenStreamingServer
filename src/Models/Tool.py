@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from datetime import datetime
@@ -99,15 +100,20 @@ def get_agent_tool_with_id(tool_id: str) -> AgentTool:
         docstring=tool.description
     )
 
-    def custom_code_lambda_invoke(**kwargs):
-        response = invoke_lambda(
-            lambda_name="execution-lambda",
-            event={
-                "function_name": tool.name,
-                "code": tool.code,
-                "params": kwargs if kwargs else {}
-            },
-            invokation_type="RequestResponse"
+    async def custom_code_lambda_invoke(**kwargs):
+        # Use asyncio to run the blocking function in a thread pool
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,  # Uses default executor
+            lambda: invoke_lambda(
+                lambda_name="execution-lambda",
+                event={
+                    "function_name": tool.name,
+                    "code": tool.code,
+                    "params": kwargs if kwargs else {}
+                },
+                invokation_type="RequestResponse"
+            )
         )
         return response["result"]
     return AgentTool(params=params, function=custom_code_lambda_invoke, pass_context=tool.pass_context)

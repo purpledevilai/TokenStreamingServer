@@ -85,8 +85,14 @@ async def connect_to_context(connection_id: str, context_id: str, access_token: 
     connection.context = context
     connection.agent_chat = agent_chat
 
-    # Invoke the first message if agent speaks first and no previous messages
-    generate_first_message = agent.agent_speaks_first and not context.messages
+    # Check if there are any AI messages with content (not just tool calls)
+    has_ai_content = any(
+        msg.get("type") == "ai" and msg.get("content")
+        for msg in context.messages
+    )
+
+    # Invoke the first message if agent speaks first and no AI content messages exist
+    generate_first_message = agent.agent_speaks_first and not has_ai_content
     if (generate_first_message):
         asyncio.create_task(send_first_message(connection))
 
