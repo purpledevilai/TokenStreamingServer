@@ -70,12 +70,20 @@ async def connect_to_context(connection_id: str, context_id: str, access_token: 
             }
         )
 
+    # Combine agent tools with context additional_agent_tools (remove duplicates)
+    agent_tool_ids = agent.tools if agent.tools else []
+    context_tool_ids = context.additional_agent_tools if context.additional_agent_tools else []
+    combined_tool_ids = list(dict.fromkeys(agent_tool_ids + context_tool_ids))  # Preserve order, remove duplicates
+    
+    # Get tool objects
+    tools = [Tool.get_agent_tool_with_id(tool_id) for tool_id in combined_tool_ids] if combined_tool_ids else []
+
     # Create the agent chat stream
     agent_chat = TokenStreamingAgentChat(
         create_llm(),
         agent.prompt,
         messages=dict_messages_to_base_messages(context.messages),
-        tools=[Tool.get_agent_tool_with_id(tool) for tool in agent.tools] if agent.tools else [],
+        tools=tools,
         context=context_dict,
         on_tool_call=on_tool_call,
         on_tool_response=on_tool_response

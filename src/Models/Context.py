@@ -24,6 +24,7 @@ class Context(BaseModel):
     updated_at: int
     prompt_args: Optional[dict] = None
     user_defined: Optional[dict] = None
+    additional_agent_tools: Optional[list[str]] = []
 
 class InitializeTool(BaseModel):
     tool_id: str
@@ -35,6 +36,7 @@ class CreateContextParams(BaseModel):
     prompt_args: Optional[dict] = None
     user_defined: Optional[dict] = None
     initialize_tools: Optional[List[InitializeTool]] = None
+    additional_agent_tools: Optional[List[str]] = []
 
 class FilteredMessage(BaseModel):
     sender: str
@@ -79,7 +81,8 @@ def create_context(
         user_id: Optional[str] = None,
         prompt_args: Optional[dict] = None,
         user_defined: Optional[dict] = None,
-        initialize_tools: Optional[List[InitializeTool]] = None
+        initialize_tools: Optional[List[InitializeTool]] = None,
+        additional_agent_tools: Optional[List[str]] = None
     ) -> Context:
     contextData = {
         CONTEXTS_PRIMARY_KEY: str(uuid.uuid4()),
@@ -88,6 +91,7 @@ def create_context(
         "messages": [],
         "prompt_args": prompt_args,
         "user_defined": user_defined,
+        "additional_agent_tools": additional_agent_tools if additional_agent_tools else [],
         "created_at": int(datetime.timestamp(datetime.now())),
         "updated_at": int(datetime.timestamp(datetime.now())),
     }
@@ -97,6 +101,20 @@ def create_context(
     agent = Agent.get_agent(agent_id)
     if not agent:
         raise Exception(f"Agent with id: {agent_id} does not exist", 404)
+    
+    # Validate additional_agent_tools if provided
+    if additional_agent_tools:
+        # Get org's tools for permission validation
+        org_tools = Tool.get_tools_for_org(agent.org_id)
+        org_tool_ids = [tool.tool_id for tool in org_tools]
+        
+        # Get registered tool names
+        registered_tool_names = list(tool_registry.keys())
+        
+        for tool_id in additional_agent_tools:
+            # Validate permissions - tool must be either in agent's org tools OR in registered tools
+            if tool_id not in org_tool_ids and tool_id not in registered_tool_names:
+                raise Exception(f"Tool {tool_id} does not belong to organization {agent.org_id}", 403)
     
     # Build list of tools to initialize
     tools_to_initialize = []

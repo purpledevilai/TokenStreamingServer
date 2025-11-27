@@ -1,6 +1,18 @@
 import boto3
 from boto3.dynamodb.conditions import Key
 from boto3.dynamodb.conditions import Attr
+from decimal import Decimal
+
+def float_to_decimal(obj):
+    """Recursively convert float objects to Decimal for DynamoDB serialization."""
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    elif isinstance(obj, dict):
+        return {key: float_to_decimal(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [float_to_decimal(item) for item in obj]
+    else:
+        return obj
 
 def get_item(table_name: str, primary_key_name: str, key: str) -> dict:
     table = boto3.resource("dynamodb").Table(table_name)
@@ -23,7 +35,9 @@ def get_all_items(table_name: str) -> list[dict]:
 
 def put_item(table_name: str, item: dict) -> None:
     table = boto3.resource("dynamodb").Table(table_name)
-    table.put_item(Item=item)
+    # Convert floats to Decimals for DynamoDB compatibility
+    converted_item = float_to_decimal(item)
+    table.put_item(Item=converted_item)
 
 def update_item(table_name: str, primary_key_name: str, key: str, update_attributes: dict) -> dict:
     item = get_item(table_name, primary_key_name, key)
