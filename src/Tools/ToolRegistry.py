@@ -8,6 +8,7 @@ from Tools.MemoryTools.write_memory import write_memory_tool
 
 from Tools.WebSearchTools.web_search import web_search_tool
 from Tools.WebSearchTools.view_url import view_url_tool
+from Tools.DataWindowTools.open_data_window import open_data_window_tool
 
 tool_registry = {
     # Pass Event Tool
@@ -22,5 +23,8 @@ tool_registry = {
 
     # Web Search Tools
     "web_search": web_search_tool,
-    "view_url": view_url_tool
+    "view_url": view_url_tool,
+    
+    # DataWindow Tools
+    "open_data_window": open_data_window_tool
 }

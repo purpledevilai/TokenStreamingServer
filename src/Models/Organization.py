@@ -3,6 +3,7 @@ from datetime import datetime
 import uuid
 from AWS.DynamoDB import get_item, put_item, delete_item
 from pydantic import BaseModel
+from typing import Optional
 
 ORGANIZATIONS_TABLE_NAME = os.environ["ORGANIZATIONS_TABLE_NAME"]
 ORGANIZATIONS_PRIMARY_KEY = os.environ["ORGANIZATIONS_PRIMARY_KEY"]
@@ -11,6 +12,7 @@ class Organization(BaseModel):
     org_id: str
     name: str
     users: list[str]
+    webhook_url: Optional[str] = None
     created_at: int
     updated_at: int
 

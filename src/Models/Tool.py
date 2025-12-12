@@ -7,7 +7,7 @@ from AWS.DynamoDB import get_item, put_item, delete_item, get_all_items_by_index
 from pydantic import BaseModel
 from Models import User, ParameterDefinition
 from typing import Optional
-from LLM.AgentChat import AgentTool
+from LLM.AgentTool import AgentTool
 from AWS.Lambda import invoke_lambda
 from Tools import ToolRegistry
 
@@ -25,6 +25,7 @@ class Tool(BaseModel):
     pd_id: Optional[str] = None
     code: Optional[str] = None
     pass_context: bool = False
+    is_async: bool = False
     created_at: int
     updated_at: int
 
@@ -36,6 +37,7 @@ class CreateToolParams(BaseModel):
     pd_id: Optional[str] = None
     code: str
     pass_context: bool = False
+    is_async: bool = False
 
 
 class UpdateToolParams(BaseModel):
@@ -44,6 +46,7 @@ class UpdateToolParams(BaseModel):
     pd_id: Optional[str] = None
     code: Optional[str] = None
     pass_context: Optional[bool] = None
+    is_async: Optional[bool] = None
 
 
 def tool_exists(tool_id: str) -> bool:
@@ -56,7 +59,8 @@ def create_tool(
     description: str,
     code: str,
     pd_id: Optional[str] = None,  # Parameter Definition ID
-    pass_context: bool = False
+    pass_context: bool = False,
+    is_async: bool = False
 ) -> Tool:
     tool_id = str(uuid.uuid4())
     created_at = int(datetime.now().timestamp())
@@ -69,6 +73,7 @@ def create_tool(
         pd_id=pd_id,
         code=code,
         pass_context=pass_context,
+        is_async=is_async,
         created_at=created_at,
         updated_at=updated_at
     )
@@ -116,7 +121,7 @@ def get_agent_tool_with_id(tool_id: str) -> AgentTool:
             )
         )
         return response["result"]
-    return AgentTool(params=params, function=custom_code_lambda_invoke, pass_context=tool.pass_context)
+    return AgentTool(params=params, function=custom_code_lambda_invoke, pass_context=tool.pass_context, is_async=tool.is_async)
 
 
 def get_tool_for_user(tool_id: str, user: User.User) -> Tool:

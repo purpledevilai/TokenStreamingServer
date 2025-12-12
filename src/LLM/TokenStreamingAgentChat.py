@@ -155,12 +155,19 @@ class TokenStreamingAgentChat:
                         tool_input=tool_call['args']
                     )
 
-                tool_response = await tool.function(
-                    **tool_call['args'],
-                    context=self.context # Either pass context
-                ) if tool.pass_context else await tool.function(
-                    **tool_call['args'] # or not
-                )
+                # Build params starting with tool call args
+                params = {**tool_call['args']}
+                
+                # Add tool_call_id for async tools
+                if tool.is_async:
+                    params['tool_call_id'] = tool_call_id
+                
+                # Add context if tool needs it
+                if tool.pass_context:
+                    params['context'] = self.context
+                
+                # Call the tool
+                tool_response = await tool.function(**params)
 
                 # Notify callback if provided
                 if self.on_tool_response:

@@ -3,7 +3,7 @@ import os
 import json
 import requests
 from pydantic import Field, BaseModel
-from LLM.AgentChat import AgentTool
+from LLM.AgentTool import AgentTool
 
 
 class web_search(BaseModel):

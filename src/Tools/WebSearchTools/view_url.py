@@ -4,7 +4,7 @@ import json
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from pydantic import Field, BaseModel
-from LLM.AgentChat import AgentTool
+from LLM.AgentTool import AgentTool
 
 
 class view_url(BaseModel):

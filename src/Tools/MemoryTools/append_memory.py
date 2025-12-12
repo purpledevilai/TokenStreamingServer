@@ -2,7 +2,7 @@ import asyncio
 from enum import Enum
 from pydantic import Field, BaseModel
 import json
-from LLM.AgentChat import AgentTool
+from LLM.AgentTool import AgentTool
 from Models import JSONDocument
 from Tools.MemoryTools.helper_retrive_and_cache_doc import retrieve_and_cache_doc
 

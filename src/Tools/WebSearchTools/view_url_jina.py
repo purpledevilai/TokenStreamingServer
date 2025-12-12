@@ -1,7 +1,7 @@
 import asyncio
 import requests
 from pydantic import Field, BaseModel
-from LLM.AgentChat import AgentTool
+from LLM.AgentTool import AgentTool
 
 
 class view_url_jina(BaseModel):

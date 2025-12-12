@@ -1,7 +1,7 @@
 from typing import List
 import json
 from decimal import Decimal
-from langchain_core.messages import HumanMessage, BaseMessage, ToolMessage, AIMessage
+from langchain_core.messages import HumanMessage, BaseMessage, ToolMessage, AIMessage, SystemMessage
 
 def decimal_to_serializable(obj):
     """Recursively convert Decimal objects to float/int for JSON serialization."""
@@ -40,4 +40,8 @@ def dict_messages_to_base_messages(messages: List[dict]) -> List[BaseMessage]:
             base_messages.append(AIMessage(**cleaned_message))
         elif cleaned_message["type"] == "tool":
             base_messages.append(ToolMessage(**cleaned_message))
+        elif cleaned_message["type"] == "system":
+            base_messages.append(SystemMessage(**cleaned_message))
+        else:
+            raise ValueError(f"Unknown message type: {cleaned_message['type']}")
     return base_messages

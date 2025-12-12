@@ -1,6 +1,6 @@
 import uuid
 from Models import Context
-from LLM.BaseMessagesConverter import base_messages_to_dict_messages
+from LLM.BaseMessagesConverter import base_messages_to_dict_messages, dict_messages_to_base_messages
 from lib.Connection import Connection
 from stores.connections import CONNECTIONS
 
@@ -21,6 +21,13 @@ async def add_message(connection_id: str, message: str):
     
     # Get the agent
     agent = connection.agent_chat
+
+    # Refresh context
+    connection.context = Context.get_context(connection.context.context_id)
+
+    # Process any pending async tool responses
+    connection.context = Context.process_async_tool_response_queue(connection.context)
+    agent.messages = dict_messages_to_base_messages(connection.context.messages)
     
     # Invoke the agent chat stream
     token_stream = await agent.add_human_message_and_invoke(message)

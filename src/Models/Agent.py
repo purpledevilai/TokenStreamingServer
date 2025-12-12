@@ -40,7 +40,7 @@ class CreateAgentParams(BaseModel):
     prompt: str
     org_id: Optional[str] = None
     is_public: bool
-    agent_speaks_first: bool
+    agent_speaks_first: Optional[bool] = False
     tools: Optional[list[str]] = []
     uses_prompt_args: Optional[bool] = False
     voice_id: Optional[str] = None
@@ -66,7 +66,7 @@ def create_agent(
         prompt: str,
         org_id: str,
         is_public: bool,
-        agent_speaks_first: bool,
+        agent_speaks_first: Optional[bool] = False,
         tools: Optional[list[str]] = [],
         uses_prompt_args: Optional[bool] = False,
         voice_id: Optional[str] = None,

@@ -1,5 +1,5 @@
 from pydantic import Field, BaseModel
-from LLM.AgentChat import AgentTool
+from LLM.AgentTool import AgentTool
 
 # This name must match what you are referencing in the prompt
 class pass_event(BaseModel):

@@ -1,7 +1,7 @@
 import asyncio
 from pydantic import Field, BaseModel
 import json
-from LLM.AgentChat import AgentTool
+from LLM.AgentTool import AgentTool
 from Models import JSONDocument
 from Tools.MemoryTools.helper_retrive_and_cache_doc import retrieve_and_cache_doc
 from AWS.APIGateway import default_type_error_handler

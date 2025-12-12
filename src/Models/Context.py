@@ -25,6 +25,7 @@ class Context(BaseModel):
     prompt_args: Optional[dict] = None
     user_defined: Optional[dict] = None
     additional_agent_tools: Optional[list[str]] = []
+    async_tool_response_queue: Optional[list[dict]] = []
 
 class InitializeTool(BaseModel):
     tool_id: str
@@ -293,7 +294,6 @@ def transform_messages_to_filtered(messages: list[dict], show_tool_calls: bool =
                 "sender": message["type"],
                 "message": message["content"]
             }))
-            continue
         if (show_tool_calls):
             if (message["type"] == "ai" and len(message["tool_calls"]) > 0):
                 for tool_call in message["tool_calls"]:
@@ -436,6 +436,112 @@ def filtered_messages_to_dict_messages(filtered_messages: list[MessageType]) -> 
         })
     
     return dict_messages
+
+
+def add_async_tool_response(context: Context, tool_call_id: str, response: str) -> Context:
+    """
+    Add an async tool response to the queue, replacing any existing response with the same tool_call_id.
+    """
+    if not context.async_tool_response_queue:
+        context.async_tool_response_queue = []
+    
+    # Check for duplicate tool_call_id and remove it
+    context.async_tool_response_queue = [
+        item for item in context.async_tool_response_queue 
+        if item.get("tool_call_id") != tool_call_id
+    ]
+    
+    # Add the new response
+    context.async_tool_response_queue.append({
+        "tool_call_id": tool_call_id,
+        "response": response
+    })
+
+    # Save the context
+    save_context(context)
+    
+    return context
+
+
+def process_async_tool_response_queue(context: Context) -> Context:
+    """
+    Process all pending async tool responses by creating new tool call/response pairs
+    and appending them to the context's messages array. Only processes responses
+    that have a corresponding tool call in the message stack. Unmatched responses
+    remain in the queue. Saves the context after processing.
+    """
+    if not context.async_tool_response_queue or len(context.async_tool_response_queue) == 0:
+        print("No async tool response queue to process")
+        return context
+    
+    # Build a mapping of tool_call_id -> tool_name from existing messages
+    tool_call_id_to_name = {}
+    for message in context.messages:
+        if message.get("type") == "ai" and message.get("tool_calls"):
+            for tool_call in message["tool_calls"]:
+                tool_call_id_to_name[tool_call.get("id")] = tool_call.get("name")
+    
+    # Separate responses into those that can be processed and those that should remain queued
+    responses_to_process = []
+    responses_to_keep_queued = []
+    
+    for queued_response in context.async_tool_response_queue:
+        tool_call_id = queued_response["tool_call_id"]
+        
+        if tool_call_id in tool_call_id_to_name:
+            # Tool call exists, process this response
+            responses_to_process.append(queued_response)
+        else:
+            # Tool call doesn't exist yet, keep in queue
+            responses_to_keep_queued.append(queued_response)
+    
+    # Create tool call/response pairs for async responses
+    if responses_to_process:
+        response_messages = []
+        response_tool_calls = []
+        
+        # Build all response tool calls for a single AI message
+        for queued_response in responses_to_process:
+            original_tool_call_id = queued_response["tool_call_id"]
+            original_tool_name = tool_call_id_to_name[original_tool_call_id]
+            
+            # Generate new tool call ID for the response tool
+            response_tool_call_id = str(uuid.uuid4())
+            
+            # Create tool call for {tool_name}_response
+            response_tool_calls.append({
+                "id": response_tool_call_id,
+                "name": f"{original_tool_name}_response",
+                "args": {"original_tool_call_id": original_tool_call_id}
+            })
+        
+        # Create single AI message with all response tool calls
+        ai_message = AIMessage(
+            content="",
+            tool_calls=response_tool_calls
+        )
+        response_messages.append(ai_message)
+        
+        # Create tool response messages for each
+        for i, queued_response in enumerate(responses_to_process):
+            response_tool_call_id = response_tool_calls[i]["id"]
+            tool_message = ToolMessage(
+                tool_call_id=response_tool_call_id,
+                content=queued_response["response"]
+            )
+            response_messages.append(tool_message)
+        
+        # Convert to dict format and extend context messages
+        context.messages.extend(base_messages_to_dict_messages(response_messages))
+    
+    # Update the queue to only contain unmatched responses
+    context.async_tool_response_queue = responses_to_keep_queued
+    
+    # Save the context
+    save_context(context)
+    print("Processed async tool response queue, new context messages:", context.messages)
+    
+    return context
 
 
     
