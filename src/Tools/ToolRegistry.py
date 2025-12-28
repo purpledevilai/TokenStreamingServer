@@ -5,6 +5,7 @@ from Tools.MemoryTools.read_memory import read_memory_tool
 from Tools.MemoryTools.view_memory_shape import view_memory_shape_tool
 from Tools.MemoryTools.delete_memory import delete_memory_tool
 from Tools.MemoryTools.write_memory import write_memory_tool
+from Tools.MemoryTools.open_memory_window import open_memory_window_tool
 
 from Tools.WebSearchTools.web_search import web_search_tool
 from Tools.WebSearchTools.view_url import view_url_tool
@@ -26,5 +27,8 @@ tool_registry = {
     "view_url": view_url_tool,
     
     # DataWindow Tools
-    "open_data_window": open_data_window_tool
+    "open_data_window": open_data_window_tool,
+
+    # Open Memory Window Tool
+    "open_memory_window": open_memory_window_tool,
 }
