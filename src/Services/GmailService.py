@@ -252,3 +252,265 @@ def parse_message_body(message: dict) -> str:
     
     return ""
 
+
+# ==================== Draft Functions ====================
+
+def _create_mime_message(to: str = None, subject: str = None, body: str = None, html: bool = False) -> str:
+    """
+    Create a MIME message and return it as a base64url encoded string.
+    
+    Args:
+        to: Recipient email address (optional for drafts)
+        subject: Email subject
+        body: Email body content
+        html: If True, body is treated as HTML
+    
+    Returns:
+        Base64url encoded message string
+    """
+    if html:
+        message = MIMEMultipart("alternative")
+        message.attach(MIMEText(body or "", "html"))
+    else:
+        message = MIMEText(body or "")
+    
+    if to:
+        message["to"] = to
+    if subject:
+        message["subject"] = subject
+    
+    return base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
+
+
+def create_draft(integration_id: str, to: str = None, subject: str = None, body: str = None, html: bool = False):
+    """
+    Create a draft email.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        to: Recipient email address (optional)
+        subject: Email subject (optional)
+        body: Email body content (optional)
+        html: If True, body is treated as HTML
+    
+    Returns:
+        Created draft metadata
+    """
+    raw = _create_mime_message(to, subject, body, html)
+    
+    return gmail_api_request(
+        integration_id,
+        "POST",
+        "/users/me/drafts",
+        json={"message": {"raw": raw}}
+    )
+
+
+def list_drafts(integration_id: str, max_results: int = 10):
+    """
+    List drafts in the user's mailbox.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        max_results: Maximum number of drafts to return (default 10)
+    
+    Returns:
+        List of draft metadata
+    """
+    params = {"maxResults": max_results}
+    return gmail_api_request(integration_id, "GET", "/users/me/drafts", params=params)
+
+
+def get_draft(integration_id: str, draft_id: str, format: str = "full"):
+    """
+    Get a specific draft by ID.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        draft_id: The draft ID
+        format: The format to return (minimal, full, raw, metadata)
+    
+    Returns:
+        Full draft data including the message
+    """
+    params = {"format": format}
+    return gmail_api_request(integration_id, "GET", f"/users/me/drafts/{draft_id}", params=params)
+
+
+def update_draft(integration_id: str, draft_id: str, to: str = None, subject: str = None, body: str = None, html: bool = False):
+    """
+    Update an existing draft.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        draft_id: The draft ID to update
+        to: Recipient email address (optional)
+        subject: Email subject (optional)
+        body: Email body content (optional)
+        html: If True, body is treated as HTML
+    
+    Returns:
+        Updated draft metadata
+    """
+    raw = _create_mime_message(to, subject, body, html)
+    
+    return gmail_api_request(
+        integration_id,
+        "PUT",
+        f"/users/me/drafts/{draft_id}",
+        json={"message": {"raw": raw}}
+    )
+
+
+def send_draft(integration_id: str, draft_id: str):
+    """
+    Send an existing draft. This removes the draft from the drafts folder.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        draft_id: The draft ID to send
+    
+    Returns:
+        Sent message metadata
+    """
+    return gmail_api_request(
+        integration_id,
+        "POST",
+        "/users/me/drafts/send",
+        json={"id": draft_id}
+    )
+
+
+def delete_draft(integration_id: str, draft_id: str):
+    """
+    Delete a draft permanently.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        draft_id: The draft ID to delete
+    
+    Returns:
+        Empty dict on success
+    """
+    return gmail_api_request(integration_id, "DELETE", f"/users/me/drafts/{draft_id}")
+
+
+# ==================== Label Functions ====================
+
+def get_label(integration_id: str, label_id: str):
+    """
+    Get a specific label by ID.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        label_id: The label ID
+    
+    Returns:
+        Label data
+    """
+    return gmail_api_request(integration_id, "GET", f"/users/me/labels/{label_id}")
+
+
+def create_label(integration_id: str, name: str, label_list_visibility: str = "labelShow", message_list_visibility: str = "show"):
+    """
+    Create a new label.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        name: The display name of the label
+        label_list_visibility: Visibility in the label list (labelShow, labelShowIfUnread, labelHide)
+        message_list_visibility: Visibility in the message list (show, hide)
+    
+    Returns:
+        Created label data
+    """
+    body = {
+        "name": name,
+        "labelListVisibility": label_list_visibility,
+        "messageListVisibility": message_list_visibility,
+    }
+    return gmail_api_request(integration_id, "POST", "/users/me/labels", json=body)
+
+
+def delete_label(integration_id: str, label_id: str):
+    """
+    Delete a label. System labels cannot be deleted.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        label_id: The label ID to delete
+    
+    Returns:
+        Empty dict on success
+    """
+    return gmail_api_request(integration_id, "DELETE", f"/users/me/labels/{label_id}")
+
+
+def update_label(integration_id: str, label_id: str, name: str = None, label_list_visibility: str = None, message_list_visibility: str = None):
+    """
+    Update a label's properties.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        label_id: The label ID to update
+        name: New display name (optional)
+        label_list_visibility: New visibility in label list (optional)
+        message_list_visibility: New visibility in message list (optional)
+    
+    Returns:
+        Updated label data
+    """
+    body = {}
+    if name:
+        body["name"] = name
+    if label_list_visibility:
+        body["labelListVisibility"] = label_list_visibility
+    if message_list_visibility:
+        body["messageListVisibility"] = message_list_visibility
+    
+    return gmail_api_request(integration_id, "PATCH", f"/users/me/labels/{label_id}", json=body)
+
+
+# ==================== Email Lifecycle Functions ====================
+
+def trash_message(integration_id: str, message_id: str):
+    """
+    Move a message to the trash.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        message_id: The message ID to trash
+    
+    Returns:
+        Trashed message metadata
+    """
+    return gmail_api_request(integration_id, "POST", f"/users/me/messages/{message_id}/trash")
+
+
+def untrash_message(integration_id: str, message_id: str):
+    """
+    Remove a message from the trash.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        message_id: The message ID to restore
+    
+    Returns:
+        Restored message metadata
+    """
+    return gmail_api_request(integration_id, "POST", f"/users/me/messages/{message_id}/untrash")
+
+
+def delete_message(integration_id: str, message_id: str):
+    """
+    Permanently delete a message. This action is irreversible.
+    
+    Args:
+        integration_id: The Gmail integration ID
+        message_id: The message ID to permanently delete
+    
+    Returns:
+        Empty dict on success
+    """
+    return gmail_api_request(integration_id, "DELETE", f"/users/me/messages/{message_id}")
+

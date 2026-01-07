@@ -8,15 +8,52 @@ from Services import GmailService
 
 class list_emails(BaseModel):
     """
-    List emails from a Gmail inbox. Returns a list of email summaries including sender, subject, 
-    date, and whether the email is unread. Use the query parameter to filter emails 
-    (e.g., "is:unread", "from:someone@example.com", "subject:meeting").
+    List emails from a Gmail account. Returns a list of email summaries including sender, subject, 
+    date, and whether the email is unread. Use the query parameter to filter emails by various criteria.
+    
+    Content/keyword search:
+    - Any keyword: 'meeting' (searches subject, body, sender name, etc.)
+    - Exact phrase: '"project deadline"' (use quotes for exact match)
+    - Multiple keywords (AND): 'budget report' (must contain both)
+    - Either keyword (OR): '{budget OR report}' (contains either)
+    - Exclude keyword: '-unsubscribe' (excludes emails with this word)
+    
+    Location/label filters:
+    - Inbox only: 'in:inbox'
+    - Trashed emails: 'in:trash'
+    - Archived emails: '-in:inbox -in:trash -in:spam'
+    - Sent emails: 'in:sent'
+    - Spam: 'in:spam'
+    - Starred: 'is:starred'
+    - Specific label: 'label:YourLabelName'
+    
+    People filters:
+    - From someone: 'from:email@example.com'
+    - To someone: 'to:email@example.com'
+    - CC'd: 'cc:email@example.com'
+    - BCC'd: 'bcc:email@example.com'
+    
+    Other filters:
+    - Unread: 'is:unread'
+    - Subject contains: 'subject:keyword'
+    - Has attachment: 'has:attachment'
+    - Attachment filename: 'filename:pdf' or 'filename:report.xlsx'
+    - Date range: 'after:2024/01/01 before:2024/12/31'
+    - Larger than: 'larger:5M'
+    - Smaller than: 'smaller:1M'
+    
+    Combine multiple filters with spaces (AND logic).
     """
     integration_id: str = Field(description="The Gmail integration ID to use for authentication.")
     query: Optional[str] = Field(
         default=None,
-        description="Gmail search query to filter emails. Examples: 'is:unread', 'from:boss@company.com', "
-                    "'subject:urgent', 'after:2024/01/01', 'has:attachment'. Multiple filters can be combined."
+        description="Gmail search query. Keywords search everywhere (subject, body, sender). "
+                    "Use quotes for exact phrases: '\"exact phrase\"'. "
+                    "Location: 'in:inbox', 'in:trash', 'in:sent', 'label:Name'. "
+                    "People: 'from:email', 'to:email'. Status: 'is:unread', 'is:starred'. "
+                    "Attachments: 'has:attachment', 'filename:pdf'. "
+                    "Dates: 'after:2024/01/01', 'before:2024/12/31'. "
+                    "Exclude with minus: '-keyword'. Combine with spaces for AND logic."
     )
     max_results: Optional[int] = Field(
         default=10,
@@ -88,6 +125,7 @@ async def list_emails_func_async(integration_id: str, query: str = None, max_res
         None,
         lambda: list_emails_func(integration_id, query, max_results)
     )
+
 
 list_emails_tool = AgentTool(params=list_emails, function=list_emails_func_async, pass_context=False)
 

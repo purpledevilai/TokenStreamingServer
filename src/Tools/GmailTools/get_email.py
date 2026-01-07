@@ -62,5 +62,6 @@ async def get_email_func_async(integration_id: str, message_id: str) -> str:
         lambda: get_email_func(integration_id, message_id)
     )
 
+
 get_email_tool = AgentTool(params=get_email, function=get_email_func_async, pass_context=False)
 

@@ -62,5 +62,6 @@ async def send_email_func_async(integration_id: str, to: str, subject: str, body
         lambda: send_email_func(integration_id, to, subject, body, html)
     )
 
+
 send_email_tool = AgentTool(params=send_email, function=send_email_func_async, pass_context=False)
 

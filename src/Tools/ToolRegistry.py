@@ -14,8 +14,21 @@ from Tools.DataWindowTools.open_data_window import open_data_window_tool
 from Tools.GmailTools.list_emails import list_emails_tool
 from Tools.GmailTools.get_email import get_email_tool
 from Tools.GmailTools.send_email import send_email_tool
-from Tools.GmailTools.mark_email_read import mark_email_read_tool
-from Tools.GmailTools.mark_email_unread import mark_email_unread_tool
+from Tools.GmailTools.archive_email import archive_email_tool
+from Tools.GmailTools.trash_email import trash_email_tool
+from Tools.GmailTools.untrash_email import untrash_email_tool
+from Tools.GmailTools.delete_email import delete_email_tool
+from Tools.GmailTools.set_email_read_status import set_email_read_status_tool
+from Tools.GmailTools.modify_email_labels import modify_email_labels_tool
+from Tools.GmailTools.list_labels import list_labels_tool
+from Tools.GmailTools.create_label import create_label_tool
+from Tools.GmailTools.delete_label import delete_label_tool
+from Tools.GmailTools.list_drafts import list_drafts_tool
+from Tools.GmailTools.get_draft import get_draft_tool
+from Tools.GmailTools.create_draft import create_draft_tool
+from Tools.GmailTools.update_draft import update_draft_tool
+from Tools.GmailTools.send_draft import send_draft_tool
+from Tools.GmailTools.delete_draft import delete_draft_tool
 
 tool_registry = {
     # Pass Event Tool
@@ -38,10 +51,27 @@ tool_registry = {
     # Open Memory Window Tool
     "open_memory_window": open_memory_window_tool,
 
-    # Gmail Tools
+    # Gmail Tools - Email Operations
     "list_emails": list_emails_tool,
     "get_email": get_email_tool,
     "send_email": send_email_tool,
-    "mark_email_read": mark_email_read_tool,
-    "mark_email_unread": mark_email_unread_tool,
+    "set_email_read_status": set_email_read_status_tool,
+    "archive_email": archive_email_tool,
+    "trash_email": trash_email_tool,
+    "untrash_email": untrash_email_tool,
+    "delete_email": delete_email_tool,
+    "modify_email_labels": modify_email_labels_tool,
+
+    # Gmail Tools - Label Operations
+    "list_labels": list_labels_tool,
+    "create_label": create_label_tool,
+    "delete_label": delete_label_tool,
+
+    # Gmail Tools - Draft Operations
+    "list_drafts": list_drafts_tool,
+    "get_draft": get_draft_tool,
+    "create_draft": create_draft_tool,
+    "update_draft": update_draft_tool,
+    "send_draft": send_draft_tool,
+    "delete_draft": delete_draft_tool,
 }
