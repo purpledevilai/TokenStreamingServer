@@ -14,6 +14,7 @@ from Tools import ToolRegistry
 
 TOOLS_TABLE_NAME = os.environ["TOOLS_TABLE_NAME"]
 TOOLS_PRIMARY_KEY = os.environ["TOOLS_PRIMARY_KEY"]
+EXECUTION_LAMBDA_NAME = os.environ["EXECUTION_LAMBDA_NAME"]
 
 
 class Tool(BaseModel):
@@ -111,7 +112,7 @@ def get_agent_tool_with_id(tool_id: str) -> AgentTool:
         response = await loop.run_in_executor(
             None,  # Uses default executor
             lambda: invoke_lambda(
-                lambda_name="execution-lambda",
+                lambda_name=EXECUTION_LAMBDA_NAME,
                 event={
                     "function_name": tool.name,
                     "code": tool.code,
