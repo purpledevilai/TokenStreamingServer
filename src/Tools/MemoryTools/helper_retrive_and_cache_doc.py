@@ -2,6 +2,17 @@ from Models import JSONDocument, User
 
 
 def retrieve_and_cache_doc(document_id, context):
+    memory_document = None
+    if "user_id" in context:
+        user_id = context["user_id"]
+        user = User.get_user(user_id)
+        memory_document = JSONDocument.get_json_document_for_user(document_id, user)
+    else:
+        memory_document = JSONDocument.get_public_json_document(document_id)
+
+    return memory_document
+
+    # Leaving here if we want to revisit caching the document in context
     # Check if document is cached
     memory_document = None
     if "memory_documents" in context and document_id in context["memory_documents"]:
