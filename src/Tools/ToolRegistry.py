@@ -30,6 +30,30 @@ from Tools.GmailTools.update_draft import update_draft_tool
 from Tools.GmailTools.send_draft import send_draft_tool
 from Tools.GmailTools.delete_draft import delete_draft_tool
 
+# Outlook Tools - Core
+from Tools.OutlookTools.list_outlook_emails import list_outlook_emails_tool
+from Tools.OutlookTools.get_outlook_email import get_outlook_email_tool
+from Tools.OutlookTools.send_outlook_email import send_outlook_email_tool
+from Tools.OutlookTools.set_outlook_email_read_status import set_outlook_email_read_status_tool
+# Outlook Draft Tools
+from Tools.OutlookTools.create_outlook_draft import create_outlook_draft_tool
+from Tools.OutlookTools.list_outlook_drafts import list_outlook_drafts_tool
+from Tools.OutlookTools.get_outlook_draft import get_outlook_draft_tool
+from Tools.OutlookTools.update_outlook_draft import update_outlook_draft_tool
+from Tools.OutlookTools.send_outlook_draft import send_outlook_draft_tool
+from Tools.OutlookTools.delete_outlook_draft import delete_outlook_draft_tool
+# Outlook Folder Tools
+from Tools.OutlookTools.list_outlook_folders import list_outlook_folders_tool
+from Tools.OutlookTools.create_outlook_folder import create_outlook_folder_tool
+from Tools.OutlookTools.delete_outlook_folder import delete_outlook_folder_tool
+from Tools.OutlookTools.move_outlook_email import move_outlook_email_tool
+from Tools.OutlookTools.modify_outlook_email_categories import modify_outlook_email_categories_tool
+# Outlook Lifecycle Tools
+from Tools.OutlookTools.archive_outlook_email import archive_outlook_email_tool
+from Tools.OutlookTools.trash_outlook_email import trash_outlook_email_tool
+from Tools.OutlookTools.untrash_outlook_email import untrash_outlook_email_tool
+from Tools.OutlookTools.delete_outlook_email import delete_outlook_email_tool
+
 tool_registry = {
     # Pass Event Tool
     "pass_event": pass_event_tool,
@@ -74,4 +98,28 @@ tool_registry = {
     "update_draft": update_draft_tool,
     "send_draft": send_draft_tool,
     "delete_draft": delete_draft_tool,
+
+    # Outlook Tools
+    "list_outlook_emails": list_outlook_emails_tool,
+    "get_outlook_email": get_outlook_email_tool,
+    "send_outlook_email": send_outlook_email_tool,
+    "set_outlook_email_read_status": set_outlook_email_read_status_tool,
+    # Outlook Draft Tools
+    "create_outlook_draft": create_outlook_draft_tool,
+    "list_outlook_drafts": list_outlook_drafts_tool,
+    "get_outlook_draft": get_outlook_draft_tool,
+    "update_outlook_draft": update_outlook_draft_tool,
+    "send_outlook_draft": send_outlook_draft_tool,
+    "delete_outlook_draft": delete_outlook_draft_tool,
+    # Outlook Folder Tools
+    "list_outlook_folders": list_outlook_folders_tool,
+    "create_outlook_folder": create_outlook_folder_tool,
+    "delete_outlook_folder": delete_outlook_folder_tool,
+    "move_outlook_email": move_outlook_email_tool,
+    "modify_outlook_email_categories": modify_outlook_email_categories_tool,
+    # Outlook Lifecycle Tools
+    "archive_outlook_email": archive_outlook_email_tool,
+    "trash_outlook_email": trash_outlook_email_tool,
+    "untrash_outlook_email": untrash_outlook_email_tool,
+    "delete_outlook_email": delete_outlook_email_tool,
 }
