@@ -24,6 +24,7 @@ class Agent(BaseModel):
     agent_speaks_first: bool = False
     tools: Optional[list[str]] = []
     uses_prompt_args: Optional[bool] = False
+    prompt_arg_names: Optional[list[str]] = []
     voice_id: Optional[str] = None
     initialize_tool_id: Optional[str] = None
     created_at: int
@@ -43,6 +44,7 @@ class CreateAgentParams(BaseModel):
     agent_speaks_first: Optional[bool] = False
     tools: Optional[list[str]] = []
     uses_prompt_args: Optional[bool] = False
+    prompt_arg_names: Optional[list[str]] = []
     voice_id: Optional[str] = None
     initialize_tool_id: Optional[str] = None
 
@@ -54,6 +56,7 @@ class UpdateAgentParams(BaseModel):
     agent_speaks_first: Optional[bool] = None
     tools: Optional[list[str]] = None
     uses_prompt_args: Optional[bool] = None
+    prompt_arg_names: Optional[list[str]] = None
     voice_id: Optional[str] = None
     initialize_tool_id: Optional[str] = None
 
@@ -69,6 +72,7 @@ def create_agent(
         agent_speaks_first: Optional[bool] = False,
         tools: Optional[list[str]] = [],
         uses_prompt_args: Optional[bool] = False,
+        prompt_arg_names: Optional[list[str]] = [],
         voice_id: Optional[str] = None,
         initialize_tool_id: Optional[str] = None
     ) -> Agent:
@@ -83,6 +87,7 @@ def create_agent(
         "is_default_agent": False,
         "tools": tools,
         "uses_prompt_args": uses_prompt_args,
+        "prompt_arg_names": prompt_arg_names,
         "voice_id": voice_id,
         "initialize_tool_id": initialize_tool_id,
         "created_at": int(datetime.timestamp(datetime.now())),

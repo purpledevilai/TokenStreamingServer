@@ -16,15 +16,20 @@ class AgentChat:
       tools: List[AgentTool] = None,
       messages: List[BaseMessage] = [],
       context: dict = None,
+      prompt_arg_names: List[str] = [],
   ):
     self.messages = messages
     self.context = context
-    if context.get("prompt_args") and context["prompt_args"]:
-      for key in context["prompt_args"].keys():
-        context["prompt_args"][key] = context["prompt_args"][key].replace("{", "{{").replace("}", "}}")
-      prompt = prompt.format(**context["prompt_args"])
-    else:
-      prompt = prompt.replace("{", "{{").replace("}", "}}")
+    
+    # Replace prompt arguments using explicit prompt_arg_names
+    # Simple string find-and-replace - arg names can be any format (e.g., ARG_USER_NAME or {user_name})
+    for arg_name in prompt_arg_names:
+      if context and context.get("prompt_args") and arg_name in context["prompt_args"]:
+        prompt = prompt.replace(arg_name, str(context["prompt_args"][arg_name]))
+    
+    # Escape any remaining curly brackets for ChatPromptTemplate
+    prompt = prompt.replace("{", "{{").replace("}", "}}")
+    
     chat_prompt_template = ChatPromptTemplate.from_messages([
         ("system", prompt),
         (MessagesPlaceholder(variable_name="messages"))

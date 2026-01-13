@@ -86,7 +86,8 @@ async def connect_to_context(connection_id: str, context_id: str, access_token: 
         tools=tools,
         context=context_dict,
         on_tool_call=on_tool_call,
-        on_tool_response=on_tool_response
+        on_tool_response=on_tool_response,
+        prompt_arg_names=agent.prompt_arg_names if agent.prompt_arg_names else []
     )
 
     # Set the connection's context and agent_chat - used later in message calls
