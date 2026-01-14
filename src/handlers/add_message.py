@@ -39,6 +39,9 @@ async def add_message(connection_id: str, message: str):
     async for token in token_stream:
         await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
 
+    # Send stop token signal
+    await connection.peer.call(method="on_stop_token", params={"response_id": response_id})
+
     # Save the new message to context 
     connection.context.messages = base_messages_to_dict_messages(connection.agent_chat.messages)
     Context.save_context(connection.context)

@@ -31,6 +31,10 @@ class TokenStreamingAgentChat:
         self.context = context
         self.on_tool_call = on_tool_call
         self.on_tool_response = on_tool_response
+        
+        # Abort mechanism state
+        self.is_generating = False
+        self.should_abort_invocation = False
 
         # Replace prompt arguments using explicit prompt_arg_names
         # Simple string find-and-replace - arg names can be any format (e.g., ARG_USER_NAME or {user_name})
@@ -59,12 +63,33 @@ class TokenStreamingAgentChat:
         # The chain to invoke
         self.prompt_chain = chat_prompt_template | llm
 
+    #########################
+    #                       #
+    # -- Stop Invocation -- #
+    #                       #
+    #########################
+    def stop_invocation(self):
+        """Stop the current invocation by setting the abort flag."""
+        self.should_abort_invocation = True
+
     ################
     #              #
     # -- Invoke -- #
     #              #
     ################
     async def invoke(self, load_data_windows: bool = True):
+        
+        # Check if we should abort before starting
+        if self.should_abort_invocation:
+            self.should_abort_invocation = False  # Reset for next invocation
+            self.is_generating = False
+            async def empty_generator():
+                return
+                yield  # Make it a generator
+            return empty_generator()
+        
+        # Mark as generating
+        self.is_generating = True
 
         # Refresh data windows if enabled
         if load_data_windows:
@@ -96,11 +121,19 @@ class TokenStreamingAgentChat:
 
                     # Then for each other chunk, add and send
                     async for res_chunk in response_generator:
+                        # Check if we should abort
+                        if self.should_abort_invocation:
+                            self.should_abort_invocation = False  # Reset for next invocation
+                            break
                         ai_message += res_chunk.content
                         yield res_chunk.content
 
-                    # Add message after streaming is complete
-                    self.messages.append(AIMessage(content=ai_message))
+                    # Add message after streaming is complete (even partial if aborted)
+                    if ai_message:
+                        self.messages.append(AIMessage(content=ai_message))
+                    
+                    # Mark as no longer generating
+                    self.is_generating = False
 
                 # Return the async generator
                 return async_response_generator()
@@ -143,6 +176,15 @@ class TokenStreamingAgentChat:
 
         # 3.b) Loop through tool calls
         for tool_call_id, tool_call in tool_calls.items():
+            # Check if we should abort before each tool call
+            if self.should_abort_invocation:
+                self.should_abort_invocation = False  # Reset for next invocation
+                self.is_generating = False
+                async def empty_generator():
+                    return
+                    yield  # Make it a generator
+                return empty_generator()
+            
             try:
                 # Args
                 tool_call['args'] = json.loads(tool_call['args'])

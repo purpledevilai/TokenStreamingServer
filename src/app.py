@@ -5,6 +5,8 @@ from lib.Connection import Connection
 from stores.connections import CONNECTIONS
 from handlers.connect_to_context import connect_to_context
 from handlers.add_message import add_message
+from handlers.stop_invocation import stop_invocation
+from handlers.set_last_messages import set_last_messages
 
 app = FastAPI()
 
@@ -45,6 +47,8 @@ async def websocket_endpoint(websocket: WebSocket):
     
     connection.on("connect_to_context", connect_to_context)
     connection.on("add_message", add_message)
+    connection.on("stop_invocation", stop_invocation)
+    connection.on("set_last_messages", set_last_messages)
 
     try:
         await connection.start()
