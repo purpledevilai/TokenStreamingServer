@@ -190,6 +190,131 @@ Sends a message to the agent and triggers a response. The agent's response will 
 }
 ```
 
+#### 3. `stop_invocation`
+
+Stops any currently running agent invocation. Use this to interrupt the agent while it's generating a response (e.g., when a user interrupts during voice conversation).
+
+**Request:**
+```json
+{
+  "method": "stop_invocation",
+  "params": {},
+  "id": "request-id-789"
+}
+```
+
+**Parameters:** None required.
+
+**Response:**
+```json
+{
+  "id": "request-id-789",
+  "result": {
+    "success": true
+  }
+}
+```
+
+**Notes:**
+- Call this before `set_last_messages` to ensure any ongoing generation is stopped
+- The agent will stop generating tokens as soon as possible
+- Any partial response generated before stopping will be preserved in the message history
+- Safe to call even if no generation is currently in progress
+
+**Use Case - Voice Interruption:**
+When building voice applications, users may interrupt the agent while it's speaking. Call `stop_invocation` immediately when an interruption is detected to stop token generation, then use `set_last_messages` to modify the conversation history.
+
+#### 4. `set_last_messages`
+
+Modifies the conversation history and re-invokes the agent. Designed for voice interruption scenarios where you need to adjust what was said and continue the conversation.
+
+**Request:**
+```json
+{
+  "method": "set_last_messages",
+  "params": {
+    "human_message": "The complete user message",
+    "ai_message": "Optional: The AI's partial response"
+  },
+  "id": "request-id-101"
+}
+```
+
+**Parameters:**
+- `human_message` (required): The human message content
+- `ai_message` (optional): The AI message content. If omitted, triggers Scenario 1. If provided, triggers Scenario 2.
+
+**Response:**
+The method will stream a new response via `on_token` notifications, followed by `on_stop_token` when complete.
+
+**Scenario 1: Human Message Only (`ai_message` omitted)**
+
+Use this when the user interrupts BEFORE the agent has spoken any audio to them.
+
+The method will:
+1. Find the last human message in the conversation
+2. Check if any tool calls were completed after that message
+3. **If NO completed tool calls:**
+   - Replace the last human message content with `human_message`
+   - Remove all AI-generated content after it
+   - Re-invoke the agent
+4. **If there ARE completed tool calls:**
+   - Keep the original human message and all completed tool calls
+   - Calculate the "delta" (new content): `human_message - original_human_message`
+   - Add a NEW human message with the delta at the end
+   - Re-invoke the agent
+
+**Example - No Tool Calls:**
+```
+Before: [Human: "Hello"] → [AI: "Hi there!"]
+Call: set_last_messages({ human_message: "Hello, what's the weather?" })
+After: [Human: "Hello, what's the weather?"] → (new AI response streams)
+```
+
+**Example - With Completed Tool Calls:**
+```
+Before: [Human: "Check my email"] → [AI: tool_call] → [Tool: response] → [AI: "You have 3 emails"]
+Call: set_last_messages({ human_message: "Check my email and tell me about the first one" })
+After: [Human: "Check my email"] → [AI: tool_call] → [Tool: response] → [Human: "and tell me about the first one"] → (new AI response streams)
+```
+
+**Scenario 2: AI Message + Human Message (`ai_message` provided)**
+
+Use this when the user interrupts AFTER the agent has spoken some audio to them.
+
+The method will:
+1. Find the last AI message with content
+2. Replace its content with the provided `ai_message` (preserving any tool calls)
+3. Append a new human message with `human_message` content
+4. Re-invoke the agent
+
+**Example:**
+```
+Before: [Human: "Tell me a story"] → [AI: "Once upon a time, there was a dragon who..."]
+User interrupts after hearing "Once upon a time"
+Call: set_last_messages({ 
+  ai_message: "Once upon a time", 
+  human_message: "Make it about a princess instead" 
+})
+After: [Human: "Tell me a story"] → [AI: "Once upon a time"] → [Human: "Make it about a princess instead"] → (new AI response streams)
+```
+
+**Notes:**
+- Always call `stop_invocation` before `set_last_messages` to ensure any ongoing generation is stopped
+- The context is automatically saved to the database after modifications and after the new response completes
+- If no existing human/AI message is found, new messages are created
+- The method streams the new response via `on_token` and signals completion with `on_stop_token`
+
+**Error Response:**
+```json
+{
+  "id": "request-id-101",
+  "result": {
+    "error": "No context set for connection"
+  }
+}
+```
+
 ### Server to Client Notifications
 
 The server sends these notifications to the client during agent interactions:
@@ -227,9 +352,39 @@ Sent for each token as the agent generates its response. This allows for real-ti
 {"method": "on_token", "params": {"token": " are", "response_id": "abc-123"}}
 {"method": "on_token", "params": {"token": " you", "response_id": "abc-123"}}
 {"method": "on_token", "params": {"token": "?", "response_id": "abc-123"}}
+{"method": "on_stop_token", "params": {"response_id": "abc-123"}}
 ```
 
-#### 2. `on_tool_call`
+#### 2. `on_stop_token`
+
+Sent when the agent has finished generating its response. This signals that all tokens for a given `response_id` have been sent.
+
+**Notification:**
+```json
+{
+  "method": "on_stop_token",
+  "params": {
+    "response_id": "uuid-of-response"
+  }
+}
+```
+
+**Parameters:**
+- `response_id` (string): The UUID that matches the `response_id` from the preceding `on_token` notifications
+
+**Notes:**
+- This notification is sent after the final `on_token` for a response
+- Use this to know when it's safe to finalize the response (e.g., stop TTS generation, enable user input)
+- Critical for voice applications to know when the agent has finished speaking
+- Always sent after `add_message` or `set_last_messages` completes
+
+**Use Case - Voice Applications:**
+When building voice applications, use `on_stop_token` to:
+1. Know when to stop waiting for more audio to generate
+2. Re-enable user interruption detection
+3. Update UI to show the agent is done speaking
+
+#### 3. `on_tool_call`
 
 Sent when the agent calls a tool during its response generation.
 
@@ -258,7 +413,7 @@ Sent when the agent calls a tool during its response generation.
 - A corresponding `on_tool_response` notification will follow after the tool executes
 - Multiple tool calls may occur in a single response
 
-#### 3. `on_tool_response`
+#### 4. `on_tool_response`
 
 Sent after a tool call completes execution.
 
@@ -283,7 +438,7 @@ Sent after a tool call completes execution.
 - This notification always follows a corresponding `on_tool_call` with the same `tool_call_id`
 - The tool output is typically a string representation of the tool's result
 
-#### 4. `on_events`
+#### 5. `on_events`
 
 Sent after a response is complete if the agent generated any custom events during processing.
 
@@ -573,6 +728,8 @@ class TokenStreamingClient {
       );
       // Emit token event
       this.onToken?.(token, response_id);
+    } else if (msg.method === 'on_stop_token') {
+      this.onStopToken?.(msg.params.response_id);
     } else if (msg.method === 'on_tool_call') {
       this.onToolCall?.(msg.params);
     } else if (msg.method === 'on_tool_response') {
@@ -622,6 +779,18 @@ class TokenStreamingClient {
     return await this.call('add_message', { message });
   }
 
+  async stopInvocation() {
+    return await this.call('stop_invocation', {});
+  }
+
+  async setLastMessages(humanMessage, aiMessage = null) {
+    const params = { human_message: humanMessage };
+    if (aiMessage) {
+      params.ai_message = aiMessage;
+    }
+    return await this.call('set_last_messages', params);
+  }
+
   getResponse(responseId) {
     return this.tokenBuffers.get(responseId) || '';
   }
@@ -636,6 +805,11 @@ const client = new TokenStreamingClient('wss://token-streaming-server.prod.token
 
 client.onToken = (token, responseId) => {
   console.log('Token:', token);
+};
+
+client.onStopToken = (responseId) => {
+  console.log('Response complete:', responseId);
+  console.log('Full response:', client.getResponse(responseId));
 };
 
 client.onToolCall = (params) => {
@@ -664,5 +838,18 @@ await client.addMessage('Hello!');
   2. Call `connect_to_context` with context ID
   3. Call `add_message` to send messages
   4. Receive `on_token` notifications for streaming responses
-  5. Optionally receive `on_tool_call`, `on_tool_response`, and `on_events` notifications
+  5. Receive `on_stop_token` notification when response is complete
+  6. Optionally receive `on_tool_call`, `on_tool_response`, and `on_events` notifications
+
+### Voice Interruption Flow
+
+For voice applications that need to handle user interruptions:
+
+1. **User starts speaking (interruption detected)**
+2. Call `stop_invocation` to stop the agent immediately
+3. Call `set_last_messages` with appropriate parameters:
+   - If agent hadn't spoken yet: `{ human_message: "aggregated user input" }`
+   - If agent had spoken: `{ human_message: "user's new input", ai_message: "what agent said before interruption" }`
+4. Receive new `on_token` stream for the agent's updated response
+5. Receive `on_stop_token` when complete
 

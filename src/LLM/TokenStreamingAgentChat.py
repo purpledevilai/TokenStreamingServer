@@ -69,8 +69,9 @@ class TokenStreamingAgentChat:
     #                       #
     #########################
     def stop_invocation(self):
-        """Stop the current invocation by setting the abort flag."""
-        self.should_abort_invocation = True
+        """Stop the current invocation by setting the abort flag (only if currently generating)."""
+        if self.is_generating:
+            self.should_abort_invocation = True
 
     ################
     #              #
