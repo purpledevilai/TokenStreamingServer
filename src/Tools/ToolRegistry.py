@@ -30,6 +30,14 @@ from Tools.GmailTools.update_draft import update_draft_tool
 from Tools.GmailTools.send_draft import send_draft_tool
 from Tools.GmailTools.delete_draft import delete_draft_tool
 
+# Google Calendar Tools
+from Tools.GoogleCalendarTools.list_calendar_events import list_calendar_events_tool
+from Tools.GoogleCalendarTools.get_calendar_event import get_calendar_event_tool
+from Tools.GoogleCalendarTools.create_calendar_event import create_calendar_event_tool
+from Tools.GoogleCalendarTools.update_calendar_event import update_calendar_event_tool
+from Tools.GoogleCalendarTools.delete_calendar_event import delete_calendar_event_tool
+from Tools.GoogleCalendarTools.list_calendars import list_calendars_tool
+
 # Outlook Tools - Core
 from Tools.OutlookTools.list_outlook_emails import list_outlook_emails_tool
 from Tools.OutlookTools.get_outlook_email import get_outlook_email_tool
@@ -98,6 +106,14 @@ tool_registry = {
     "update_draft": update_draft_tool,
     "send_draft": send_draft_tool,
     "delete_draft": delete_draft_tool,
+
+    # Google Calendar Tools
+    "list_calendar_events": list_calendar_events_tool,
+    "get_calendar_event": get_calendar_event_tool,
+    "create_calendar_event": create_calendar_event_tool,
+    "update_calendar_event": update_calendar_event_tool,
+    "delete_calendar_event": delete_calendar_event_tool,
+    "list_calendars": list_calendars_tool,
 
     # Outlook Tools
     "list_outlook_emails": list_outlook_emails_tool,

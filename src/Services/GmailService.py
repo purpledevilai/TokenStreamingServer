@@ -29,8 +29,8 @@ def _refresh_token(integration: Integration.Integration) -> Integration.Integrat
     
     payload = {
         "grant_type": "refresh_token",
-        "client_id": os.environ["GMAIL_CLIENT_ID"],
-        "client_secret": os.environ["GMAIL_CLIENT_SECRET"],
+        "client_id": os.environ["GOOGLE_CLIENT_ID"],
+        "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
         "refresh_token": refresh_token,
     }
     resp = requests.post(GMAIL_TOKEN_URL, data=payload)
