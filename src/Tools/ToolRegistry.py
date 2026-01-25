@@ -7,6 +7,10 @@ from Tools.MemoryTools.delete_memory import delete_memory_tool
 from Tools.MemoryTools.write_memory import write_memory_tool
 from Tools.MemoryTools.open_memory_window import open_memory_window_tool
 
+# Utility Tools
+from Tools.UtilityTools.get_time import get_time_tool
+from Tools.UtilityTools.think import think_tool
+
 from Tools.WebSearchTools.web_search import web_search_tool
 from Tools.WebSearchTools.view_url import view_url_tool
 from Tools.DataWindowTools.open_data_window import open_data_window_tool
@@ -65,6 +69,10 @@ from Tools.OutlookTools.delete_outlook_email import delete_outlook_email_tool
 tool_registry = {
     # Pass Event Tool
     "pass_event": pass_event_tool,
+
+    # Utility Tools
+    "get_time": get_time_tool,
+    "think": think_tool,
 
     # Memory Tools
     "append_memory": append_memory_tool,
