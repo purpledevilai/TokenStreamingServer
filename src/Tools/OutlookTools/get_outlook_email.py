@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pydantic import Field, BaseModel
+from typing import Optional
 from LLM.AgentTool import AgentTool
 from Services import OutlookService
 
@@ -11,15 +12,21 @@ class get_outlook_email(BaseModel):
     Use the message ID from list_outlook_emails to retrieve the full email.
     """
     integration_id: str = Field(description="The Outlook integration ID to use for authentication.")
+    shared_mailbox_email: Optional[str] = Field(
+        default=None,
+        description="Email address of a shared mailbox to access. Leave empty to access your own mailbox."
+    )
     message_id: str = Field(description="The message ID from list_outlook_emails.")
 
 
-def get_outlook_email_func(integration_id: str, message_id: str) -> str:
+def get_outlook_email_func(integration_id: str, shared_mailbox_email: str = None,
+                           message_id: str = None) -> str:
     """
     Get the full content of a specific email.
     
     Args:
         integration_id: The Outlook integration ID
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
         message_id: The message ID
         
     Returns:
@@ -30,7 +37,8 @@ def get_outlook_email_func(integration_id: str, message_id: str) -> str:
     if not message_id:
         raise Exception("message_id is required.")
     
-    message = OutlookService.get_message(integration_id, message_id)
+    message = OutlookService.get_message(integration_id, message_id, 
+                                          shared_mailbox_email=shared_mailbox_email)
     
     # Parse sender and recipient info
     from_addr = message.get("from", {}).get("emailAddress", {})
@@ -63,11 +71,12 @@ def get_outlook_email_func(integration_id: str, message_id: str) -> str:
     }, indent=2)
 
 
-async def get_outlook_email_func_async(integration_id: str, message_id: str) -> str:
+async def get_outlook_email_func_async(integration_id: str, shared_mailbox_email: str = None,
+                                        message_id: str = None) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
         None,
-        lambda: get_outlook_email_func(integration_id, message_id)
+        lambda: get_outlook_email_func(integration_id, shared_mailbox_email, message_id)
     )
 
 

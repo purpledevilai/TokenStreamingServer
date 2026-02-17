@@ -12,6 +12,10 @@ class create_outlook_folder(BaseModel):
     within an existing folder.
     """
     integration_id: str = Field(description="The Outlook integration ID to use for authentication.")
+    shared_mailbox_email: Optional[str] = Field(
+        default=None,
+        description="Email address of a shared mailbox to access. Leave empty to access your own mailbox."
+    )
     name: str = Field(description="Display name for the new folder.")
     parent_folder_id: Optional[str] = Field(
         default=None,
@@ -19,12 +23,14 @@ class create_outlook_folder(BaseModel):
     )
 
 
-def create_outlook_folder_func(integration_id: str, name: str, parent_folder_id: str = None) -> str:
+def create_outlook_folder_func(integration_id: str, shared_mailbox_email: str = None,
+                                name: str = None, parent_folder_id: str = None) -> str:
     """
     Create a new mail folder.
     
     Args:
         integration_id: The Outlook integration ID
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
         name: Display name for the folder
         parent_folder_id: Optional parent folder ID for subfolders
         
@@ -36,7 +42,8 @@ def create_outlook_folder_func(integration_id: str, name: str, parent_folder_id:
     if not name:
         raise Exception("name is required.")
     
-    result = OutlookService.create_folder(integration_id, name, parent_folder_id)
+    result = OutlookService.create_folder(integration_id, name, parent_folder_id,
+                                           shared_mailbox_email=shared_mailbox_email)
     
     return json.dumps({
         "status": "created",
@@ -46,11 +53,12 @@ def create_outlook_folder_func(integration_id: str, name: str, parent_folder_id:
     }, indent=2)
 
 
-async def create_outlook_folder_func_async(integration_id: str, name: str, parent_folder_id: str = None) -> str:
+async def create_outlook_folder_func_async(integration_id: str, shared_mailbox_email: str = None,
+                                            name: str = None, parent_folder_id: str = None) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
         None,
-        lambda: create_outlook_folder_func(integration_id, name, parent_folder_id)
+        lambda: create_outlook_folder_func(integration_id, shared_mailbox_email, name, parent_folder_id)
     )
 
 

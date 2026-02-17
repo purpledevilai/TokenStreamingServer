@@ -11,18 +11,24 @@ class list_outlook_drafts(BaseModel):
     List all draft emails in the Outlook account.
     """
     integration_id: str = Field(description="The Outlook integration ID to use for authentication.")
+    shared_mailbox_email: Optional[str] = Field(
+        default=None,
+        description="Email address of a shared mailbox to access. Leave empty to access your own mailbox."
+    )
     max_results: Optional[int] = Field(
         default=10,
         description="Maximum number of drafts to return (default 10, max 100)."
     )
 
 
-def list_outlook_drafts_func(integration_id: str, max_results: int = 10) -> str:
+def list_outlook_drafts_func(integration_id: str, shared_mailbox_email: str = None,
+                              max_results: int = 10) -> str:
     """
     List drafts in the user's mailbox.
     
     Args:
         integration_id: The Outlook integration ID
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
         max_results: Maximum number of drafts to return
         
     Returns:
@@ -34,7 +40,8 @@ def list_outlook_drafts_func(integration_id: str, max_results: int = 10) -> str:
     if max_results > 100:
         max_results = 100
     
-    result = OutlookService.list_drafts(integration_id, max_results=max_results)
+    result = OutlookService.list_drafts(integration_id, max_results=max_results,
+                                         shared_mailbox_email=shared_mailbox_email)
     messages = result.get("value", [])
     
     if not messages:
@@ -64,11 +71,12 @@ def list_outlook_drafts_func(integration_id: str, max_results: int = 10) -> str:
     }, indent=2)
 
 
-async def list_outlook_drafts_func_async(integration_id: str, max_results: int = 10) -> str:
+async def list_outlook_drafts_func_async(integration_id: str, shared_mailbox_email: str = None,
+                                          max_results: int = 10) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
         None,
-        lambda: list_outlook_drafts_func(integration_id, max_results)
+        lambda: list_outlook_drafts_func(integration_id, shared_mailbox_email, max_results)
     )
 
 

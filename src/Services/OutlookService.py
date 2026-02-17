@@ -13,9 +13,26 @@ GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 OUTLOOK_SCOPES = [
     "https://graph.microsoft.com/Mail.ReadWrite",
     "https://graph.microsoft.com/Mail.Send",
+    "https://graph.microsoft.com/Mail.Read.Shared",
+    "https://graph.microsoft.com/Mail.Send.Shared",
     "https://graph.microsoft.com/User.Read",
     "offline_access",
 ]
+
+
+def _get_mailbox_path_prefix(shared_mailbox_email: str = None) -> str:
+    """
+    Return the Graph API path prefix for the target mailbox.
+    
+    Args:
+        shared_mailbox_email: Email address of a shared mailbox. If None, uses the user's own mailbox.
+    
+    Returns:
+        "/me" for user's own mailbox, or "/users/{email}" for shared mailbox
+    """
+    if shared_mailbox_email:
+        return f"/users/{shared_mailbox_email}"
+    return "/me"
 
 
 def _get_outlook_integration_by_id(integration_id: str) -> Integration.Integration:
@@ -94,7 +111,8 @@ def outlook_api_request(integration_id: str, method: str, path: str, **kwargs):
 # ==================== Message Functions ====================
 
 def list_messages(integration_id: str, folder_id: str = None, filter_query: str = None, 
-                  search_query: str = None, max_results: int = 10, select: list = None):
+                  search_query: str = None, max_results: int = 10, select: list = None,
+                  shared_mailbox_email: str = None):
     """
     List messages in a mail folder or all messages.
     
@@ -105,14 +123,16 @@ def list_messages(integration_id: str, folder_id: str = None, filter_query: str 
         search_query: OData $search query for full-text search
         max_results: Maximum number of messages to return (default 10)
         select: List of fields to select
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         List of message metadata
     """
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
     if folder_id:
-        path = f"/me/mailFolders/{folder_id}/messages"
+        path = f"{prefix}/mailFolders/{folder_id}/messages"
     else:
-        path = "/me/messages"
+        path = f"{prefix}/messages"
     
     params = {"$top": max_results}
     
@@ -124,12 +144,15 @@ def list_messages(integration_id: str, folder_id: str = None, filter_query: str 
         params["$select"] = ",".join(select)
     
     # Default ordering by received date descending
-    params["$orderby"] = "receivedDateTime desc"
+    # Note: $orderby is not supported with $search in Microsoft Graph API
+    if not search_query:
+        params["$orderby"] = "receivedDateTime desc"
     
     return outlook_api_request(integration_id, "GET", path, params=params)
 
 
-def get_message(integration_id: str, message_id: str, select: list = None):
+def get_message(integration_id: str, message_id: str, select: list = None,
+                shared_mailbox_email: str = None):
     """
     Get a specific message by ID.
     
@@ -137,11 +160,13 @@ def get_message(integration_id: str, message_id: str, select: list = None):
         integration_id: The Outlook integration ID
         message_id: The message ID
         select: Optional list of fields to select
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Full message data
     """
-    path = f"/me/messages/{message_id}"
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    path = f"{prefix}/messages/{message_id}"
     params = {}
     if select:
         params["$select"] = ",".join(select)
@@ -149,7 +174,8 @@ def get_message(integration_id: str, message_id: str, select: list = None):
     return outlook_api_request(integration_id, "GET", path, params=params if params else None)
 
 
-def send_message(integration_id: str, to: str, subject: str, body: str, html: bool = False):
+def send_message(integration_id: str, to: str, subject: str, body: str, html: bool = False,
+                 shared_mailbox_email: str = None):
     """
     Send an email.
     
@@ -159,10 +185,12 @@ def send_message(integration_id: str, to: str, subject: str, body: str, html: bo
         subject: Email subject
         body: Email body content
         html: If True, body is treated as HTML
+        shared_mailbox_email: Email address of a shared mailbox to send from (optional)
     
     Returns:
         Empty response on success (202 Accepted)
     """
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
     message_body = {
         "message": {
             "subject": subject,
@@ -180,10 +208,11 @@ def send_message(integration_id: str, to: str, subject: str, body: str, html: bo
         }
     }
     
-    return outlook_api_request(integration_id, "POST", "/me/sendMail", json=message_body)
+    return outlook_api_request(integration_id, "POST", f"{prefix}/sendMail", json=message_body)
 
 
-def update_message(integration_id: str, message_id: str, updates: dict):
+def update_message(integration_id: str, message_id: str, updates: dict,
+                   shared_mailbox_email: str = None):
     """
     Update a message's properties.
     
@@ -191,28 +220,33 @@ def update_message(integration_id: str, message_id: str, updates: dict):
         integration_id: The Outlook integration ID
         message_id: The message ID
         updates: Dict of properties to update (e.g., {"isRead": True})
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Updated message metadata
     """
-    return outlook_api_request(integration_id, "PATCH", f"/me/messages/{message_id}", json=updates)
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    return outlook_api_request(integration_id, "PATCH", f"{prefix}/messages/{message_id}", json=updates)
 
 
-def delete_message(integration_id: str, message_id: str):
+def delete_message(integration_id: str, message_id: str, shared_mailbox_email: str = None):
     """
     Permanently delete a message.
     
     Args:
         integration_id: The Outlook integration ID
         message_id: The message ID to permanently delete
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Empty dict on success
     """
-    return outlook_api_request(integration_id, "DELETE", f"/me/messages/{message_id}")
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    return outlook_api_request(integration_id, "DELETE", f"{prefix}/messages/{message_id}")
 
 
-def move_message(integration_id: str, message_id: str, destination_folder_id: str):
+def move_message(integration_id: str, message_id: str, destination_folder_id: str,
+                 shared_mailbox_email: str = None):
     """
     Move a message to a different folder.
     
@@ -220,21 +254,24 @@ def move_message(integration_id: str, message_id: str, destination_folder_id: st
         integration_id: The Outlook integration ID
         message_id: The message ID
         destination_folder_id: The destination folder ID (e.g., 'inbox', 'deleteditems', 'archive')
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Moved message metadata
     """
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
     return outlook_api_request(
         integration_id,
         "POST",
-        f"/me/messages/{message_id}/move",
+        f"{prefix}/messages/{message_id}/move",
         json={"destinationId": destination_folder_id}
     )
 
 
 # ==================== Draft Functions ====================
 
-def create_draft(integration_id: str, to: str = None, subject: str = None, body: str = None, html: bool = False):
+def create_draft(integration_id: str, to: str = None, subject: str = None, body: str = None, 
+                 html: bool = False, shared_mailbox_email: str = None):
     """
     Create a draft email.
     
@@ -244,10 +281,12 @@ def create_draft(integration_id: str, to: str = None, subject: str = None, body:
         subject: Email subject (optional)
         body: Email body content (optional)
         html: If True, body is treated as HTML
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Created draft metadata
     """
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
     message = {}
     
     if subject:
@@ -266,39 +305,42 @@ def create_draft(integration_id: str, to: str = None, subject: str = None, body:
             }
         ]
     
-    return outlook_api_request(integration_id, "POST", "/me/messages", json=message)
+    return outlook_api_request(integration_id, "POST", f"{prefix}/messages", json=message)
 
 
-def list_drafts(integration_id: str, max_results: int = 10):
+def list_drafts(integration_id: str, max_results: int = 10, shared_mailbox_email: str = None):
     """
     List drafts in the user's mailbox.
     
     Args:
         integration_id: The Outlook integration ID
         max_results: Maximum number of drafts to return (default 10)
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         List of draft metadata
     """
-    return list_messages(integration_id, folder_id="drafts", max_results=max_results)
+    return list_messages(integration_id, folder_id="drafts", max_results=max_results,
+                         shared_mailbox_email=shared_mailbox_email)
 
 
-def get_draft(integration_id: str, draft_id: str):
+def get_draft(integration_id: str, draft_id: str, shared_mailbox_email: str = None):
     """
     Get a specific draft by ID.
     
     Args:
         integration_id: The Outlook integration ID
         draft_id: The draft (message) ID
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Full draft data
     """
-    return get_message(integration_id, draft_id)
+    return get_message(integration_id, draft_id, shared_mailbox_email=shared_mailbox_email)
 
 
 def update_draft(integration_id: str, draft_id: str, to: str = None, subject: str = None, 
-                 body: str = None, html: bool = False):
+                 body: str = None, html: bool = False, shared_mailbox_email: str = None):
     """
     Update an existing draft.
     
@@ -309,6 +351,7 @@ def update_draft(integration_id: str, draft_id: str, to: str = None, subject: st
         subject: Email subject (optional)
         body: Email body content (optional)
         html: If True, body is treated as HTML
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Updated draft metadata
@@ -331,72 +374,80 @@ def update_draft(integration_id: str, draft_id: str, to: str = None, subject: st
             }
         ]
     
-    return update_message(integration_id, draft_id, updates)
+    return update_message(integration_id, draft_id, updates, shared_mailbox_email=shared_mailbox_email)
 
 
-def send_draft(integration_id: str, draft_id: str):
+def send_draft(integration_id: str, draft_id: str, shared_mailbox_email: str = None):
     """
     Send an existing draft. This removes the draft from the drafts folder.
     
     Args:
         integration_id: The Outlook integration ID
         draft_id: The draft ID to send
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Empty dict on success
     """
-    return outlook_api_request(integration_id, "POST", f"/me/messages/{draft_id}/send")
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    return outlook_api_request(integration_id, "POST", f"{prefix}/messages/{draft_id}/send")
 
 
-def delete_draft(integration_id: str, draft_id: str):
+def delete_draft(integration_id: str, draft_id: str, shared_mailbox_email: str = None):
     """
     Delete a draft permanently.
     
     Args:
         integration_id: The Outlook integration ID
         draft_id: The draft ID to delete
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Empty dict on success
     """
-    return delete_message(integration_id, draft_id)
+    return delete_message(integration_id, draft_id, shared_mailbox_email=shared_mailbox_email)
 
 
 # ==================== Folder Functions ====================
 
-def list_folders(integration_id: str, include_hidden: bool = False):
+def list_folders(integration_id: str, include_hidden: bool = False, shared_mailbox_email: str = None):
     """
     Get all mail folders for the user's mailbox.
     
     Args:
         integration_id: The Outlook integration ID
         include_hidden: Whether to include hidden folders
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         List of folder data
     """
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
     params = {}
     if not include_hidden:
         params["$filter"] = "isHidden eq false"
     
-    return outlook_api_request(integration_id, "GET", "/me/mailFolders", params=params if params else None)
+    return outlook_api_request(integration_id, "GET", f"{prefix}/mailFolders", params=params if params else None)
 
 
-def get_folder(integration_id: str, folder_id: str):
+def get_folder(integration_id: str, folder_id: str, shared_mailbox_email: str = None):
     """
     Get a specific folder by ID.
     
     Args:
         integration_id: The Outlook integration ID
         folder_id: The folder ID (can be well-known names like 'inbox', 'drafts', etc.)
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Folder data
     """
-    return outlook_api_request(integration_id, "GET", f"/me/mailFolders/{folder_id}")
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    return outlook_api_request(integration_id, "GET", f"{prefix}/mailFolders/{folder_id}")
 
 
-def create_folder(integration_id: str, display_name: str, parent_folder_id: str = None):
+def create_folder(integration_id: str, display_name: str, parent_folder_id: str = None,
+                  shared_mailbox_email: str = None):
     """
     Create a new mail folder.
     
@@ -404,50 +455,57 @@ def create_folder(integration_id: str, display_name: str, parent_folder_id: str 
         integration_id: The Outlook integration ID
         display_name: The display name for the new folder
         parent_folder_id: Optional parent folder ID (creates subfolder if provided)
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Created folder data
     """
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
     body = {"displayName": display_name}
     
     if parent_folder_id:
-        path = f"/me/mailFolders/{parent_folder_id}/childFolders"
+        path = f"{prefix}/mailFolders/{parent_folder_id}/childFolders"
     else:
-        path = "/me/mailFolders"
+        path = f"{prefix}/mailFolders"
     
     return outlook_api_request(integration_id, "POST", path, json=body)
 
 
-def delete_folder(integration_id: str, folder_id: str):
+def delete_folder(integration_id: str, folder_id: str, shared_mailbox_email: str = None):
     """
     Delete a mail folder. Built-in folders cannot be deleted.
     
     Args:
         integration_id: The Outlook integration ID
         folder_id: The folder ID to delete
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Empty dict on success
     """
-    return outlook_api_request(integration_id, "DELETE", f"/me/mailFolders/{folder_id}")
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    return outlook_api_request(integration_id, "DELETE", f"{prefix}/mailFolders/{folder_id}")
 
 
 # ==================== Category Functions ====================
 
-def get_categories(integration_id: str):
+def get_categories(integration_id: str, shared_mailbox_email: str = None):
     """
     Get all available categories (similar to Gmail labels).
     
     Args:
         integration_id: The Outlook integration ID
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         List of category data
     """
-    return outlook_api_request(integration_id, "GET", "/me/outlook/masterCategories")
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    return outlook_api_request(integration_id, "GET", f"{prefix}/outlook/masterCategories")
 
 
-def update_message_categories(integration_id: str, message_id: str, categories: list):
+def update_message_categories(integration_id: str, message_id: str, categories: list,
+                              shared_mailbox_email: str = None):
     """
     Update categories on a message.
     
@@ -455,11 +513,13 @@ def update_message_categories(integration_id: str, message_id: str, categories: 
         integration_id: The Outlook integration ID
         message_id: The message ID
         categories: List of category names to set on the message
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
     
     Returns:
         Updated message metadata
     """
-    return update_message(integration_id, message_id, {"categories": categories})
+    return update_message(integration_id, message_id, {"categories": categories},
+                          shared_mailbox_email=shared_mailbox_email)
 
 
 # ==================== Helper Functions ====================

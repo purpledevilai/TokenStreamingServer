@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pydantic import Field, BaseModel
+from typing import Optional
 from LLM.AgentTool import AgentTool
 from Services import OutlookService
 
@@ -18,18 +19,24 @@ class move_outlook_email(BaseModel):
     - Or use a custom folder ID from list_outlook_folders
     """
     integration_id: str = Field(description="The Outlook integration ID to use for authentication.")
+    shared_mailbox_email: Optional[str] = Field(
+        default=None,
+        description="Email address of a shared mailbox to access. Leave empty to access your own mailbox."
+    )
     message_id: str = Field(description="The message ID to move.")
     destination_folder: str = Field(
         description="Destination folder ID or well-known name ('inbox', 'archive', 'deleteditems', 'junkemail', etc.)."
     )
 
 
-def move_outlook_email_func(integration_id: str, message_id: str, destination_folder: str) -> str:
+def move_outlook_email_func(integration_id: str, shared_mailbox_email: str = None,
+                             message_id: str = None, destination_folder: str = None) -> str:
     """
     Move an email to a different folder.
     
     Args:
         integration_id: The Outlook integration ID
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
         message_id: The message ID to move
         destination_folder: Destination folder ID or well-known name
         
@@ -46,7 +53,8 @@ def move_outlook_email_func(integration_id: str, message_id: str, destination_fo
     # Convert well-known folder names to proper IDs
     folder_id = OutlookService.get_well_known_folder_id(destination_folder)
     
-    result = OutlookService.move_message(integration_id, message_id, folder_id)
+    result = OutlookService.move_message(integration_id, message_id, folder_id,
+                                          shared_mailbox_email=shared_mailbox_email)
     
     return json.dumps({
         "status": "moved",
@@ -56,11 +64,12 @@ def move_outlook_email_func(integration_id: str, message_id: str, destination_fo
     }, indent=2)
 
 
-async def move_outlook_email_func_async(integration_id: str, message_id: str, destination_folder: str) -> str:
+async def move_outlook_email_func_async(integration_id: str, shared_mailbox_email: str = None,
+                                         message_id: str = None, destination_folder: str = None) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
         None,
-        lambda: move_outlook_email_func(integration_id, message_id, destination_folder)
+        lambda: move_outlook_email_func(integration_id, shared_mailbox_email, message_id, destination_folder)
     )
 
 

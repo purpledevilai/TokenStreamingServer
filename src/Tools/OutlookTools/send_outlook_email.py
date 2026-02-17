@@ -12,6 +12,10 @@ class send_outlook_email(BaseModel):
     specified recipient with the given subject and body.
     """
     integration_id: str = Field(description="The Outlook integration ID to use for authentication.")
+    shared_mailbox_email: Optional[str] = Field(
+        default=None,
+        description="Email address of a shared mailbox to send from. Leave empty to send from your own mailbox."
+    )
     to: str = Field(description="The recipient's email address.")
     subject: str = Field(description="The subject line of the email.")
     body: str = Field(description="The body content of the email. Can be plain text or HTML.")
@@ -21,12 +25,15 @@ class send_outlook_email(BaseModel):
     )
 
 
-def send_outlook_email_func(integration_id: str, to: str, subject: str, body: str, html: bool = False) -> str:
+def send_outlook_email_func(integration_id: str, shared_mailbox_email: str = None,
+                            to: str = None, subject: str = None, body: str = None, 
+                            html: bool = False) -> str:
     """
     Send an email.
     
     Args:
         integration_id: The Outlook integration ID
+        shared_mailbox_email: Email address of a shared mailbox to send from (optional)
         to: Recipient email address
         subject: Email subject
         body: Email body
@@ -44,7 +51,8 @@ def send_outlook_email_func(integration_id: str, to: str, subject: str, body: st
     if not body:
         raise Exception("body is required.")
     
-    OutlookService.send_message(integration_id, to, subject, body, html=html)
+    OutlookService.send_message(integration_id, to, subject, body, html=html,
+                                shared_mailbox_email=shared_mailbox_email)
     
     return json.dumps({
         "status": "sent",
@@ -53,11 +61,13 @@ def send_outlook_email_func(integration_id: str, to: str, subject: str, body: st
     }, indent=2)
 
 
-async def send_outlook_email_func_async(integration_id: str, to: str, subject: str, body: str, html: bool = False) -> str:
+async def send_outlook_email_func_async(integration_id: str, shared_mailbox_email: str = None,
+                                         to: str = None, subject: str = None, body: str = None, 
+                                         html: bool = False) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
         None,
-        lambda: send_outlook_email_func(integration_id, to, subject, body, html)
+        lambda: send_outlook_email_func(integration_id, shared_mailbox_email, to, subject, body, html)
     )
 
 

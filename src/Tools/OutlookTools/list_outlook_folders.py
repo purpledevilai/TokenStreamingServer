@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pydantic import Field, BaseModel
+from typing import Optional
 from LLM.AgentTool import AgentTool
 from Services import OutlookService
 
@@ -20,14 +21,19 @@ class list_outlook_folders(BaseModel):
     - Archive: Archived messages
     """
     integration_id: str = Field(description="The Outlook integration ID to use for authentication.")
+    shared_mailbox_email: Optional[str] = Field(
+        default=None,
+        description="Email address of a shared mailbox to access. Leave empty to access your own mailbox."
+    )
 
 
-def list_outlook_folders_func(integration_id: str) -> str:
+def list_outlook_folders_func(integration_id: str, shared_mailbox_email: str = None) -> str:
     """
     List all mail folders.
     
     Args:
         integration_id: The Outlook integration ID
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
         
     Returns:
         JSON string with list of folders
@@ -35,7 +41,8 @@ def list_outlook_folders_func(integration_id: str) -> str:
     if not integration_id:
         raise Exception("integration_id is required.")
     
-    result = OutlookService.list_folders(integration_id)
+    result = OutlookService.list_folders(integration_id, 
+                                          shared_mailbox_email=shared_mailbox_email)
     folders = result.get("value", [])
     
     # Separate system folders from user folders
@@ -75,11 +82,11 @@ def list_outlook_folders_func(integration_id: str) -> str:
     }, indent=2)
 
 
-async def list_outlook_folders_func_async(integration_id: str) -> str:
+async def list_outlook_folders_func_async(integration_id: str, shared_mailbox_email: str = None) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
         None,
-        lambda: list_outlook_folders_func(integration_id)
+        lambda: list_outlook_folders_func(integration_id, shared_mailbox_email)
     )
 
 

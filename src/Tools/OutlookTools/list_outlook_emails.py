@@ -35,6 +35,10 @@ class list_outlook_emails(BaseModel):
     - 'junkemail' - Spam/junk folder
     """
     integration_id: str = Field(description="The Outlook integration ID to use for authentication.")
+    shared_mailbox_email: Optional[str] = Field(
+        default=None,
+        description="Email address of a shared mailbox to access. Leave empty to access your own mailbox."
+    )
     folder: Optional[str] = Field(
         default=None,
         description="Folder to list emails from. Options: 'inbox', 'drafts', 'sentitems', 'deleteditems', 'archive', 'junkemail'. "
@@ -55,13 +59,15 @@ class list_outlook_emails(BaseModel):
     )
 
 
-def list_outlook_emails_func(integration_id: str, folder: str = None, filter_query: str = None,
+def list_outlook_emails_func(integration_id: str, shared_mailbox_email: str = None,
+                              folder: str = None, filter_query: str = None,
                               search_query: str = None, max_results: int = 10) -> str:
     """
     List emails from the Outlook mailbox.
     
     Args:
         integration_id: The Outlook integration ID
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
         folder: Optional folder to filter by
         filter_query: OData filter query
         search_query: Full-text search query
@@ -87,7 +93,8 @@ def list_outlook_emails_func(integration_id: str, folder: str = None, filter_que
         folder_id=folder_id,
         filter_query=filter_query,
         search_query=search_query,
-        max_results=max_results
+        max_results=max_results,
+        shared_mailbox_email=shared_mailbox_email
     )
     
     messages = result.get("value", [])
@@ -111,12 +118,13 @@ def list_outlook_emails_func(integration_id: str, folder: str = None, filter_que
     }, indent=2)
 
 
-async def list_outlook_emails_func_async(integration_id: str, folder: str = None, filter_query: str = None,
+async def list_outlook_emails_func_async(integration_id: str, shared_mailbox_email: str = None,
+                                          folder: str = None, filter_query: str = None,
                                           search_query: str = None, max_results: int = 10) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
         None,
-        lambda: list_outlook_emails_func(integration_id, folder, filter_query, search_query, max_results)
+        lambda: list_outlook_emails_func(integration_id, shared_mailbox_email, folder, filter_query, search_query, max_results)
     )
 
 
