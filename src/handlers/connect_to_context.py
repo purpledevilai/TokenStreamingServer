@@ -4,6 +4,7 @@ from lib.Connection import Connection
 from stores.connections import CONNECTIONS
 from AWS import Cognito
 from Models import User, Context, Agent, Tool, APIKey
+from Models.TokenTracking import build_tracking_callback
 from LLM.TokenStreamingAgentChat import TokenStreamingAgentChat
 from LLM.CreateLLM import create_llm
 from LLM.BaseMessagesConverter import base_messages_to_dict_messages, dict_messages_to_base_messages
@@ -80,13 +81,14 @@ async def connect_to_context(connection_id: str, context_id: str, access_token: 
 
     # Create the agent chat stream
     agent_chat = TokenStreamingAgentChat(
-        create_llm(),
+        create_llm(context.model_id, for_streaming=True),
         agent.prompt,
         messages=dict_messages_to_base_messages(context.messages),
         tools=tools,
         context=context_dict,
         on_tool_call=on_tool_call,
         on_tool_response=on_tool_response,
+        on_response=build_tracking_callback(agent.org_id),
         prompt_arg_names=agent.prompt_arg_names if agent.prompt_arg_names else []
     )
 

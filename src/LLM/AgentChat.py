@@ -1,9 +1,10 @@
 import json
-from typing import List
+from typing import List, Optional, Callable
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import HumanMessage, BaseMessage, ToolMessage, AIMessage
+from langchain_core.messages import HumanMessage, BaseMessage, ToolMessage, AIMessage, SystemMessage
 from LLM.AgentTool import AgentTool
+from LLM.TerminatingConfig import TerminatingConfig
 from Models import DataWindow, JSONDocument
 from Tools.MemoryTools.helper_retrive_and_cache_doc import retrieve_and_cache_doc
 from AWS.APIGateway import default_type_error_handler
@@ -17,9 +18,15 @@ class AgentChat:
       messages: List[BaseMessage] = [],
       context: dict = None,
       prompt_arg_names: List[str] = [],
+      terminating_config: Optional[TerminatingConfig] = None,
+      on_response: Optional[Callable] = None,
   ):
     self.messages = messages
     self.context = context
+    self.terminating_config = terminating_config
+    self.on_response = on_response
+    self._invocation_count = 0
+    self._consecutive_nudge_count = 0
     
     # Replace prompt arguments using explicit prompt_arg_names
     # Simple string find-and-replace - arg names can be any format (e.g., ARG_USER_NAME or {user_name})
@@ -37,21 +44,42 @@ class AgentChat:
     if tools:
       tool_params_list = []
       self.name_to_tool = {}
+      self.name_to_tool_id = {}
       for tool in tools:
         tool_params_list.append(tool.params)
-        self.name_to_tool[tool.params.__name__] = tool
+        tool_name = tool.params.__name__
+        self.name_to_tool[tool_name] = tool
+        # Map tool name to tool_id (from the tool itself)
+        if tool.tool_id:
+          self.name_to_tool_id[tool_name] = tool.tool_id
       llm = llm.bind_tools(tool_params_list)
     self.prompt_chain = chat_prompt_template | llm
 
   def invoke(self, load_data_windows: bool = True):
+    # Check max invocations limit
+    if self.terminating_config:
+      self._invocation_count += 1
+      if self._invocation_count > self.terminating_config.max_invocations:
+        raise Exception(f"Max invocations exceeded: {self.terminating_config.max_invocations}")
+    
     # Refresh DataWindows if enabled
     if load_data_windows:
       self._refresh_data_windows()
     
     response = self.prompt_chain.invoke({"messages": self.messages})
     self.messages.append(response)
+
+    if self.on_response:
+      self.on_response(response)
     
     if len(response.tool_calls) > 0:
+      # Reset consecutive nudge count since agent is calling tools
+      if self.terminating_config:
+        self._consecutive_nudge_count = 0
+      
+      # Track called tools for terminating config cleanup
+      called_tool_calls = []
+      
       for tool_call in response.tool_calls:
         try:
           tool = self.name_to_tool[tool_call["name"]]
@@ -76,8 +104,34 @@ class AgentChat:
           # General error handling (e.g., tool not found)
           tool_message = ToolMessage(tool_call_id=tool_call['id'], content=f"Issue calling tool: {tool_call['name']}, error: {e}")
           self.messages.append(tool_message)
+          tool_response = tool_message.content
+        
+        # Check for terminating tool after execution
+        if self.terminating_config:
+          called_tool_calls.append(tool_call)
+          
+          # Look up the tool_id from the tool name
+          tool_id = self.name_to_tool_id.get(tool_call["name"])
+          if tool_id and tool_id in self.terminating_config.tool_ids:
+            # Update AIMessage to only include called tools
+            response.tool_calls = called_tool_calls
+            # Return the terminating tool's response
+            return tool_response
       
       # Recursively invoke after processing tool calls
+      return self.invoke(load_data_windows=True)
+    
+    # No tool calls - content only response
+    if self.terminating_config:
+      # Agent returned content instead of calling terminating tool
+      self._consecutive_nudge_count += 1
+      
+      if self._consecutive_nudge_count > self.terminating_config.consecutive_nudges:
+        raise Exception(f"Max consecutive nudges exceeded: {self.terminating_config.consecutive_nudges}. Agent failed to call a terminating tool.")
+      
+      # Add nudge message and re-invoke
+      nudge_message = SystemMessage(content=self.terminating_config.nudge_message)
+      self.messages.append(nudge_message)
       return self.invoke(load_data_windows=True)
     
     return response.content

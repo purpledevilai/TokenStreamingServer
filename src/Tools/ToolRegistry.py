@@ -70,6 +70,11 @@ from Tools.OutlookTools.archive_outlook_email import archive_outlook_email_tool
 from Tools.OutlookTools.trash_outlook_email import trash_outlook_email_tool
 from Tools.OutlookTools.untrash_outlook_email import untrash_outlook_email_tool
 from Tools.OutlookTools.delete_outlook_email import delete_outlook_email_tool
+# Outlook Reply Tools
+from Tools.OutlookTools.reply_outlook_email import reply_outlook_email_tool
+from Tools.OutlookTools.reply_all_outlook_email import reply_all_outlook_email_tool
+from Tools.OutlookTools.create_outlook_reply_draft import create_outlook_reply_draft_tool
+from Tools.OutlookTools.create_outlook_reply_all_draft import create_outlook_reply_all_draft_tool
 
 tool_registry = {
     # Pass Event Tool
@@ -156,4 +161,9 @@ tool_registry = {
     "trash_outlook_email": trash_outlook_email_tool,
     "untrash_outlook_email": untrash_outlook_email_tool,
     "delete_outlook_email": delete_outlook_email_tool,
+    # Outlook Reply Tools
+    "reply_outlook_email": reply_outlook_email_tool,
+    "reply_all_outlook_email": reply_all_outlook_email_tool,
+    "create_outlook_reply_draft": create_outlook_reply_draft_tool,
+    "create_outlook_reply_all_draft": create_outlook_reply_all_draft_tool,
 }

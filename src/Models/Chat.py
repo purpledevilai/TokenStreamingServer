@@ -1,10 +1,12 @@
 from pydantic import BaseModel
 from typing import Optional, List, Union
+from LLM.TerminatingConfig import TerminatingConfig
 
 class ChatInput(BaseModel):
     context_id: str
     message: str
     save_ai_messages: Optional[bool] = True
+    terminating_config: Optional[TerminatingConfig] = None
 
 # Import message types from Context for use in ChatResponse
 # We'll define them inline to avoid circular imports

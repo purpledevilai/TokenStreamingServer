@@ -18,6 +18,7 @@ class StructuredResponseEndpoint(BaseModel):
     pd_id: str
     is_public: bool
     prompt_template: Optional[str] = None
+    model_id: Optional[str] = None
     created_at: int
     updated_at: int
 
@@ -29,6 +30,7 @@ class CreateSREParams(BaseModel):
     pd_id: str
     is_public: bool = False
     prompt_template: str = "{prompt}"
+    model_id: Optional[str] = None
 
 
 class UpdateSREParams(BaseModel):
@@ -37,13 +39,14 @@ class UpdateSREParams(BaseModel):
     pd_id: Optional[str] = None
     is_public: Optional[bool] = None
     prompt_template: Optional[str] = None
+    model_id: Optional[str] = None
 
 
 def sre_exists(sre_id: str) -> bool:
     return get_item(SRE_TABLE_NAME, SRE_PRIMARY_KEY, sre_id) is not None
 
 
-def create_sre(org_id: str, name: str, description: Optional[str], pd_id: str, is_public: bool = False, prompt_template: str = "{prompt}") -> StructuredResponseEndpoint:
+def create_sre(org_id: str, name: str, description: Optional[str], pd_id: str, is_public: bool = False, prompt_template: str = "{prompt}", model_id: Optional[str] = None) -> StructuredResponseEndpoint:
     sre_id = str(uuid.uuid4())
     created_at = int(datetime.now().timestamp())
     updated_at = created_at
@@ -55,6 +58,7 @@ def create_sre(org_id: str, name: str, description: Optional[str], pd_id: str, i
         pd_id=pd_id,
         is_public=is_public,
         prompt_template=prompt_template,
+        model_id=model_id,
         created_at=created_at,
         updated_at=updated_at
     )

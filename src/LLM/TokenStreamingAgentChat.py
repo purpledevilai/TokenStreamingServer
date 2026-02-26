@@ -1,6 +1,7 @@
 from typing import List, Callable, Awaitable, Optional
 import json
 from LLM.AgentTool import AgentTool
+from LLM.ContentNormalizer import normalize_content
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, BaseMessage, ToolMessage, AIMessage
@@ -24,6 +25,7 @@ class TokenStreamingAgentChat:
         context: dict = {},
         on_tool_call: Optional[Callable[[str, str, dict], Awaitable[None]]] = None,
         on_tool_response: Optional[Callable[[str, str, str], Awaitable[None]]] = None,
+        on_response: Optional[Callable] = None,
         prompt_arg_names: List[str] = [],
     ):
         # Instance variables
@@ -31,10 +33,7 @@ class TokenStreamingAgentChat:
         self.context = context
         self.on_tool_call = on_tool_call
         self.on_tool_response = on_tool_response
-        
-        # Abort mechanism state
-        self.is_generating = False
-        self.should_abort_invocation = False
+        self.on_response = on_response
 
         # Replace prompt arguments using explicit prompt_arg_names
         # Simple string find-and-replace - arg names can be any format (e.g., ARG_USER_NAME or {user_name})
@@ -63,184 +62,148 @@ class TokenStreamingAgentChat:
         # The chain to invoke
         self.prompt_chain = chat_prompt_template | llm
 
-    #########################
-    #                       #
-    # -- Stop Invocation -- #
-    #                       #
-    #########################
-    def stop_invocation(self):
-        """Stop the current invocation by setting the abort flag (only if currently generating)."""
-        if self.is_generating:
-            self.should_abort_invocation = True
-
     ################
     #              #
     # -- Invoke -- #
     #              #
     ################
     async def invoke(self, load_data_windows: bool = True):
-        
-        # Check if we should abort before starting
-        if self.should_abort_invocation:
-            self.should_abort_invocation = False  # Reset for next invocation
-            self.is_generating = False
-            async def empty_generator():
-                return
-                yield  # Make it a generator
-            return empty_generator()
-        
-        # Mark as generating
-        self.is_generating = True
 
         # Refresh data windows if enabled
         if load_data_windows:
             self._refresh_data_windows()
 
-        # placeholder vars for tool calls if any
-        tool_calls = {}
-        currently_collecting_tool_id = ""
+        accumulated_response = None
 
         # Start the async stream!
         response_generator = self.prompt_chain.astream({"messages": self.messages})
-        print(f"Created response generator")
 
         # Iterate through stream chunks with async for
         async for chunk in response_generator:
-            print(f"Received chunk")
 
-            # 1.) Content -  means its a response for the human!
-            if chunk.content:
+            accumulated_response = chunk if accumulated_response is None else accumulated_response + chunk
 
-                # Create an async generator for the response
+            # 1.) Content - only enter the content path if there is actual text.
+            #     Anthropic and reasoning models (codex) put tool_use / function_call /
+            #     reasoning blocks in chunk.content as list items that are truthy but
+            #     contain no user-facing text.
+            if normalize_content(chunk.content):
+
+                on_response_cb = self.on_response
+
                 async def async_response_generator():
-                    # Initialize ai message
+                    nonlocal accumulated_response
                     ai_message = ''
 
-                    # Add and send first chunk
-                    ai_message += chunk.content
-                    yield chunk.content
+                    first_text = normalize_content(chunk.content)
+                    ai_message += first_text
+                    yield first_text
 
-                    # Then for each other chunk, add and send
                     async for res_chunk in response_generator:
-                        # Check if we should abort
-                        if self.should_abort_invocation:
-                            self.should_abort_invocation = False  # Reset for next invocation
-                            break
-                        ai_message += res_chunk.content
-                        yield res_chunk.content
+                        accumulated_response = accumulated_response + res_chunk
+                        chunk_text = normalize_content(res_chunk.content)
+                        if chunk_text:
+                            ai_message += chunk_text
+                            yield chunk_text
 
-                    # Add message after streaming is complete (even partial if aborted)
-                    if ai_message:
+                    # Stream complete. Some models (Anthropic) can send text content
+                    # followed by tool calls in a single response. Check for that.
+                    if accumulated_response.tool_calls:
+                        if on_response_cb:
+                            on_response_cb(accumulated_response)
+                        self.messages.append(self._chunk_to_ai_message(accumulated_response))
+                        await self._process_tool_calls(accumulated_response.tool_calls)
+                        recursive_gen = await self.invoke(load_data_windows=True)
+                        if recursive_gen:
+                            async for token in recursive_gen:
+                                yield token
+                    else:
                         self.messages.append(AIMessage(content=ai_message))
-                    
-                    # Mark as no longer generating
-                    self.is_generating = False
+                        if on_response_cb:
+                            on_response_cb(accumulated_response)
 
-                # Return the async generator
                 return async_response_generator()
 
-            # 2.) Tool call chunks - means we're going to receive tool chunks
-            elif chunk.tool_call_chunks:
+        # 2.) Tool Section - No text content was streamed.
+        #     LangChain's chunk accumulation has already merged all tool_call_chunks
+        #     into parsed tool_calls on the accumulated response, regardless of
+        #     provider (OpenAI, Anthropic, reasoning models).
 
-                # All tool chunks have always been in first index...
-                tool_chunk = chunk.tool_call_chunks[0]
+        if not accumulated_response or not accumulated_response.tool_calls:
+            return None
 
-                # 2.a) Tool Chunk ID - First chunk contains tool name and ID, arg chunks will follow.
-                if tool_chunk['id']:
-                    currently_collecting_tool_id = tool_chunk['id']
-                    tool_calls[currently_collecting_tool_id] = {
-                        "name": tool_chunk['name'],
-                        "args": ''
-                    }
+        if self.on_response:
+            self.on_response(accumulated_response)
 
-                # 2.b) Tool Args - else we know chunk will have args to append
-                else:
-                    tool_calls[currently_collecting_tool_id]['args'] += tool_chunk['args']
+        self.messages.append(self._chunk_to_ai_message(accumulated_response))
+        await self._process_tool_calls(accumulated_response.tool_calls)
+        return await self.invoke(load_data_windows=True)
 
-        # 3.) Tool Section - We didn't return the content stream in section 1. This means we have tools to call
+    async def _process_tool_calls(self, tool_calls):
+        """Execute tool calls and append ToolMessages to the conversation."""
+        for tool_call in tool_calls:
+            tool_call_id = tool_call['id']
+            tool_call_name = tool_call['name']
+            tool_call_args = tool_call['args']
 
-        # 3.a) Add tool call message to messages
-        self.messages.append(AIMessage(
-            content='',
-            additional_kwargs={
-                'tool_calls': [
-                    {
-                        'id': tool_call_id,
-                        'function': {
-                            'name': tool_call['name'],
-                            'arguments': tool_call['args']
-                        }
-                    } for tool_call_id, tool_call in tool_calls.items()
-                ]
-            }
-        ))
-
-        # 3.b) Loop through tool calls
-        for tool_call_id, tool_call in tool_calls.items():
-            # Check if we should abort before each tool call
-            if self.should_abort_invocation:
-                self.should_abort_invocation = False  # Reset for next invocation
-                self.is_generating = False
-                async def empty_generator():
-                    return
-                    yield  # Make it a generator
-                return empty_generator()
-            
             try:
-                # Args
-                tool_call['args'] = json.loads(tool_call['args'])
+                tool = self.name_to_tool[tool_call_name]
 
-                # Get the tool
-                tool = self.name_to_tool[tool_call["name"]]
-
-                # Notify callback if provided
                 if self.on_tool_call:
                     await self.on_tool_call(
                         id=tool_call_id,
-                        tool_name=tool_call['name'],
-                        tool_input=tool_call['args']
+                        tool_name=tool_call_name,
+                        tool_input=tool_call_args
                     )
 
-                # Build params starting with tool call args
-                params = {**tool_call['args']}
-                
-                # Add tool_call_id for async tools
+                params = {**tool_call_args}
+
                 if tool.is_async:
                     params['tool_call_id'] = tool_call_id
-                
-                # Add context if tool needs it
+
                 if tool.pass_context:
                     params['context'] = self.context
-                
-                # Call the tool
+
                 tool_response = await tool.function(**params)
 
-                # Notify callback if provided
                 if self.on_tool_response:
                     await self.on_tool_response(
                         id=tool_call_id,
-                        tool_name=tool_call['name'],
+                        tool_name=tool_call_name,
                         tool_output=tool_response
                     )
 
-                # Create the tool message
                 tool_message = ToolMessage(
                     tool_call_id=tool_call_id,
                     content=tool_response
                 )
 
             except Exception as e:
-                # Error - Create tool message with error
                 tool_message = ToolMessage(
                     tool_call_id=tool_call_id,
-                    content=f"Issue calling tool: {tool_call['name']}, error: {e}"
+                    content=f"Issue calling tool: {tool_call_name}, error: {e}"
                 )
 
-            # Add tool message
             self.messages.append(tool_message)
 
-        # 3.c) With the AI and Tool Messages added, invoke again, recursively
-        return await self.invoke(load_data_windows=True)
+    @staticmethod
+    def _chunk_to_ai_message(chunk) -> AIMessage:
+        """Convert an accumulated AIMessageChunk to an AIMessage.
+
+        AIMessageChunk serializes with type "AIMessageChunk" which the
+        dict_to_base_messages converter doesn't recognise when the context
+        is reloaded from the database. Converting to AIMessage ensures
+        it persists with type "ai".
+        """
+        return AIMessage(
+            content=chunk.content,
+            additional_kwargs=chunk.additional_kwargs,
+            response_metadata=chunk.response_metadata,
+            tool_calls=chunk.tool_calls,
+            invalid_tool_calls=chunk.invalid_tool_calls,
+            usage_metadata=chunk.usage_metadata,
+            id=chunk.id,
+        )
 
     ######################################
     #                                    #

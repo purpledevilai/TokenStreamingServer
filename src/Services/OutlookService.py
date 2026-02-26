@@ -12,8 +12,8 @@ GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 # Scopes needed for token refresh
 OUTLOOK_SCOPES = [
     "https://graph.microsoft.com/Mail.ReadWrite",
+    "https://graph.microsoft.com/Mail.ReadWrite.Shared",
     "https://graph.microsoft.com/Mail.Send",
-    "https://graph.microsoft.com/Mail.Read.Shared",
     "https://graph.microsoft.com/Mail.Send.Shared",
     "https://graph.microsoft.com/User.Read",
     "offline_access",
@@ -266,6 +266,163 @@ def move_message(integration_id: str, message_id: str, destination_folder_id: st
         f"{prefix}/messages/{message_id}/move",
         json={"destinationId": destination_folder_id}
     )
+
+
+# ==================== Reply Functions ====================
+
+def reply_to_message(integration_id: str, message_id: str, comment: str = None, body: str = None,
+                     html: bool = False, to: str = None, cc: str = None,
+                     shared_mailbox_email: str = None):
+    """
+    Reply to the sender of a message and send immediately.
+    
+    Args:
+        integration_id: The Outlook integration ID
+        message_id: The ID of the message to reply to
+        comment: Simple text comment prepended above the quoted original (mutually exclusive with body)
+        body: Full body content for the reply (mutually exclusive with comment)
+        html: If True, body is treated as HTML (only applies when using body, not comment)
+        to: Override recipient email address (optional). If not provided, replies to the original sender.
+        cc: CC recipient email address (optional)
+        shared_mailbox_email: Email address of a shared mailbox to send from (optional)
+    
+    Returns:
+        Empty response on success (202 Accepted)
+    """
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    payload = _build_reply_payload(comment=comment, body=body, html=html, to=to, cc=cc)
+    
+    return outlook_api_request(integration_id, "POST", f"{prefix}/messages/{message_id}/reply", json=payload)
+
+
+def reply_all_to_message(integration_id: str, message_id: str, comment: str = None, body: str = None,
+                         html: bool = False, to: str = None, cc: str = None,
+                         shared_mailbox_email: str = None):
+    """
+    Reply to all recipients of a message and send immediately.
+    
+    Args:
+        integration_id: The Outlook integration ID
+        message_id: The ID of the message to reply to
+        comment: Simple text comment prepended above the quoted original (mutually exclusive with body)
+        body: Full body content for the reply (mutually exclusive with comment)
+        html: If True, body is treated as HTML (only applies when using body, not comment)
+        to: Additional or override recipient email address (optional)
+        cc: CC recipient email address (optional)
+        shared_mailbox_email: Email address of a shared mailbox to send from (optional)
+    
+    Returns:
+        Empty response on success (202 Accepted)
+    """
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    payload = _build_reply_payload(comment=comment, body=body, html=html, to=to, cc=cc)
+    
+    return outlook_api_request(integration_id, "POST", f"{prefix}/messages/{message_id}/replyAll", json=payload)
+
+
+def create_reply_draft(integration_id: str, message_id: str, comment: str = None, body: str = None,
+                       html: bool = False, to: str = None, cc: str = None,
+                       shared_mailbox_email: str = None):
+    """
+    Create a draft reply to the sender of a message (does not send).
+    
+    The draft can be further modified via update_draft() and sent via send_draft().
+    
+    Args:
+        integration_id: The Outlook integration ID
+        message_id: The ID of the message to reply to
+        comment: Simple text comment prepended above the quoted original (mutually exclusive with body)
+        body: Full body content for the reply (mutually exclusive with comment)
+        html: If True, body is treated as HTML (only applies when using body, not comment)
+        to: Override recipient email address (optional). If not provided, replies to the original sender.
+        cc: CC recipient email address (optional)
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
+    
+    Returns:
+        Created draft message metadata
+    """
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    payload = _build_reply_payload(comment=comment, body=body, html=html, to=to, cc=cc)
+    
+    return outlook_api_request(integration_id, "POST", f"{prefix}/messages/{message_id}/createReply",
+                               json=payload if payload else None)
+
+
+def create_reply_all_draft(integration_id: str, message_id: str, comment: str = None, body: str = None,
+                           html: bool = False, to: str = None, cc: str = None,
+                           shared_mailbox_email: str = None):
+    """
+    Create a draft reply-all to all recipients of a message (does not send).
+    
+    The draft can be further modified via update_draft() and sent via send_draft().
+    
+    Args:
+        integration_id: The Outlook integration ID
+        message_id: The ID of the message to reply to
+        comment: Simple text comment prepended above the quoted original (mutually exclusive with body)
+        body: Full body content for the reply (mutually exclusive with comment)
+        html: If True, body is treated as HTML (only applies when using body, not comment)
+        to: Additional or override recipient email address (optional)
+        cc: CC recipient email address (optional)
+        shared_mailbox_email: Email address of a shared mailbox to access (optional)
+    
+    Returns:
+        Created draft message metadata
+    """
+    prefix = _get_mailbox_path_prefix(shared_mailbox_email)
+    payload = _build_reply_payload(comment=comment, body=body, html=html, to=to, cc=cc)
+    
+    return outlook_api_request(integration_id, "POST", f"{prefix}/messages/{message_id}/createReplyAll",
+                               json=payload if payload else None)
+
+
+def _build_reply_payload(comment: str = None, body: str = None, html: bool = False,
+                         to: str = None, cc: str = None) -> dict:
+    """
+    Build the JSON payload for reply and createReply endpoints.
+    
+    The Graph API requires either comment or message.body, not both.
+    
+    Args:
+        comment: Simple text comment (mutually exclusive with body)
+        body: Full body content (mutually exclusive with comment)
+        html: If True, body is treated as HTML
+        to: Override/additional recipient email address (optional)
+        cc: CC recipient email address (optional)
+    
+    Returns:
+        Dict payload for the Graph API request
+    """
+    if comment and body:
+        raise Exception("Cannot specify both 'comment' and 'body'. Use 'comment' for a simple text "
+                        "reply above the quoted original, or 'body' for full control over the reply content.")
+    
+    payload = {}
+    message = {}
+    
+    if to:
+        message["toRecipients"] = [
+            {"emailAddress": {"address": to}}
+        ]
+    
+    if cc:
+        message["ccRecipients"] = [
+            {"emailAddress": {"address": cc}}
+        ]
+    
+    if body:
+        message["body"] = {
+            "contentType": "HTML" if html else "Text",
+            "content": body
+        }
+    
+    if comment:
+        payload["comment"] = comment
+    
+    if message:
+        payload["message"] = message
+    
+    return payload
 
 
 # ==================== Draft Functions ====================
