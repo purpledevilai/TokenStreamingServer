@@ -14,12 +14,12 @@ class TokenTracking(BaseModel):
     output_tokens: int
     created_at: int
 
-def build_tracking_callback(org_id: str):
+def build_tracking_callback(org_id: str, model_id: str = None):
     """Returns an on_response callback that saves token tracking for the given org."""
     def on_response(response):
         usage = getattr(response, 'usage_metadata', None)
         if usage:
-            model_name = getattr(response, 'response_metadata', {}).get('model_name', 'unknown')
+            model_name = model_id or getattr(response, 'response_metadata', {}).get('model_name', 'unknown')
             create_token_tracking(
                 org_id=org_id,
                 model=model_name,

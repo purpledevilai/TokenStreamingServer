@@ -1,5 +1,6 @@
 import os
 from AWS.DynamoDB import get_item, put_item, get_all_items
+from typing import Optional
 from pydantic import BaseModel
 
 MODELS_TABLE_NAME = os.environ["MODELS_TABLE_NAME"]
@@ -10,6 +11,9 @@ class LLMModel(BaseModel):
     model_provider: str
     input_token_cost: float
     output_token_cost: float
+    context_window_size: int
+    order: Optional[int] = None
+    use_responses_api: Optional[bool] = False
 
 def get_model(model_name: str) -> LLMModel:
     item = get_item(MODELS_TABLE_NAME, MODELS_PRIMARY_KEY, model_name)
@@ -25,7 +29,8 @@ def get_model_or_none(model_name: str) -> LLMModel | None:
 
 def get_all_models() -> list[LLMModel]:
     items = get_all_items(MODELS_TABLE_NAME)
-    return [LLMModel(**item) for item in items]
+    models = [LLMModel(**item) for item in items]
+    return sorted(models, key=lambda m: (m.order is None, -(m.order or 0)))
 
 def validate_model_id(model_id: str) -> None:
     """Validate that a model_id exists in the models table. Raises 400 if not found."""

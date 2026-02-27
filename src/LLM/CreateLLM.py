@@ -13,7 +13,10 @@ def create_llm(model_id: Optional[str] = None, for_streaming: bool = False):
 
     if llm_model.model_provider == "anthropic":
         return ChatAnthropic(model=llm_model.model)
-    elif for_streaming:
-        return ChatOpenAI(model=llm_model.model, stream_usage=True)
-    else:
-        return ChatOpenAI(model=llm_model.model)
+
+    kwargs = {"model": llm_model.model}
+    if for_streaming:
+        kwargs["stream_usage"] = True
+    if llm_model.use_responses_api:
+        kwargs["use_responses_api"] = True
+    return ChatOpenAI(**kwargs)

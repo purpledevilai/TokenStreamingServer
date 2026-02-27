@@ -88,7 +88,7 @@ async def connect_to_context(connection_id: str, context_id: str, access_token: 
         context=context_dict,
         on_tool_call=on_tool_call,
         on_tool_response=on_tool_response,
-        on_response=build_tracking_callback(agent.org_id),
+        on_response=build_tracking_callback(agent.org_id, context.model_id),
         prompt_arg_names=agent.prompt_arg_names if agent.prompt_arg_names else []
     )
 

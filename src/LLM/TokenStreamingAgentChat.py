@@ -106,21 +106,31 @@ class TokenStreamingAgentChat:
                             ai_message += chunk_text
                             yield chunk_text
 
-                    # Stream complete. Some models (Anthropic) can send text content
-                    # followed by tool calls in a single response. Check for that.
+                    if on_response_cb:
+                        on_response_cb(accumulated_response)
+
+                    # Always save the streamed text as its own AI message
+                    self.messages.append(AIMessage(
+                        content=ai_message,
+                        usage_metadata=accumulated_response.usage_metadata if not accumulated_response.tool_calls else None,
+                        response_metadata=accumulated_response.response_metadata,
+                        id=accumulated_response.id,
+                    ))
+
+                    # Some models (Anthropic) send text content followed by tool
+                    # calls in the same response. Split into a separate AI message.
                     if accumulated_response.tool_calls:
-                        if on_response_cb:
-                            on_response_cb(accumulated_response)
-                        self.messages.append(self._chunk_to_ai_message(accumulated_response))
+                        self.messages.append(AIMessage(
+                            content='',
+                            tool_calls=accumulated_response.tool_calls,
+                            usage_metadata=accumulated_response.usage_metadata,
+                            response_metadata=accumulated_response.response_metadata,
+                        ))
                         await self._process_tool_calls(accumulated_response.tool_calls)
                         recursive_gen = await self.invoke(load_data_windows=True)
                         if recursive_gen:
                             async for token in recursive_gen:
                                 yield token
-                    else:
-                        self.messages.append(AIMessage(content=ai_message))
-                        if on_response_cb:
-                            on_response_cb(accumulated_response)
 
                 return async_response_generator()
 
