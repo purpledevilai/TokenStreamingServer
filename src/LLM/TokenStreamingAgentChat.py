@@ -204,13 +204,16 @@ class TokenStreamingAgentChat:
         dict_to_base_messages converter doesn't recognise when the context
         is reloaded from the database. Converting to AIMessage ensures
         it persists with type "ai".
+
+        When the chunk has tool_calls, content may be a list of provider-
+        specific blocks (e.g. Anthropic tool_use). Normalize to an empty
+        string so the persisted message is a clean tool-call message.
         """
+        content = '' if chunk.tool_calls else (normalize_content(chunk.content) or '')
         return AIMessage(
-            content=chunk.content,
-            additional_kwargs=chunk.additional_kwargs,
+            content=content,
             response_metadata=chunk.response_metadata,
             tool_calls=chunk.tool_calls,
-            invalid_tool_calls=chunk.invalid_tool_calls,
             usage_metadata=chunk.usage_metadata,
             id=chunk.id,
         )
