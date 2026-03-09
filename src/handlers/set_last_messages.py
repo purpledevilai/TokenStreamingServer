@@ -4,6 +4,7 @@ from LLM.BaseMessagesConverter import base_messages_to_dict_messages, dict_messa
 from lib.Connection import Connection
 from stores.connections import CONNECTIONS
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from LLM.ContentNormalizer import normalize_content
 
 
 async def set_last_messages(connection_id: str, human_message: str, ai_message: str = None):
@@ -120,33 +121,34 @@ def _handle_human_message_only(messages: list, human_message: str) -> list:
                 new_messages.append(msg)
         
         elif isinstance(msg, AIMessage):
-            # Get tool_calls from this AI message
-            tool_calls = msg.additional_kwargs.get('tool_calls', [])
+            tool_calls = msg.tool_calls or []
             
             if tool_calls:
-                # Filter to keep only completed tool_calls
                 completed_tool_calls = [
                     tc for tc in tool_calls 
                     if tc.get('id') in completed_tool_call_ids
                 ]
                 
                 if completed_tool_calls:
-                    # Modify AI message in place to only have completed tool_calls
-                    new_additional_kwargs = {**msg.additional_kwargs}
-                    new_additional_kwargs['tool_calls'] = completed_tool_calls
-                    
-                    modified_ai_msg = AIMessage(
-                        content=msg.content,  # Keep any existing content
-                        additional_kwargs=new_additional_kwargs
-                    )
-                    new_messages.append(modified_ai_msg)
-                elif msg.content:
-                    # No completed tool_calls but has content - keep the content
-                    new_messages.append(AIMessage(content=msg.content))
-                # else: no completed tool_calls and no content - skip entirely
+                    text = normalize_content(msg.content)
+                    if text:
+                        new_messages.append(AIMessage(content=text))
+                    new_messages.append(AIMessage(
+                        content='',
+                        tool_calls=completed_tool_calls,
+                        response_metadata=msg.response_metadata,
+                        usage_metadata=msg.usage_metadata,
+                        id=msg.id,
+                    ))
+                elif normalize_content(msg.content):
+                    new_messages.append(AIMessage(
+                        content=normalize_content(msg.content),
+                        response_metadata=msg.response_metadata,
+                        usage_metadata=msg.usage_metadata,
+                        id=msg.id,
+                    ))
             
-            elif msg.content:
-                # AI message with content but no tool_calls - skip (this was generated content)
+            elif normalize_content(msg.content):
                 continue
     
     # Calculate delta: what the user said AFTER the tool calls were made
@@ -190,4 +192,3 @@ def _handle_ai_and_human_message(messages: list, ai_message: str, human_message:
     messages.append(HumanMessage(content=human_message))
     
     return messages
-

@@ -34,6 +34,8 @@ class TokenStreamingAgentChat:
         self.on_tool_call = on_tool_call
         self.on_tool_response = on_tool_response
         self.on_response = on_response
+        self.is_generating = False
+        self.should_abort_invocation = False
 
         # Replace prompt arguments using explicit prompt_arg_names
         # Simple string find-and-replace - arg names can be any format (e.g., ARG_USER_NAME or {user_name})
@@ -62,6 +64,16 @@ class TokenStreamingAgentChat:
         # The chain to invoke
         self.prompt_chain = chat_prompt_template | llm
 
+    #########################
+    #                       #
+    # -- Stop Invocation -- #
+    #                       #
+    #########################
+    def stop_invocation(self):
+        """Stop the current invocation by setting the abort flag (only if currently generating)."""
+        if self.is_generating:
+            self.should_abort_invocation = True
+
     ################
     #              #
     # -- Invoke -- #
@@ -69,18 +81,27 @@ class TokenStreamingAgentChat:
     ################
     async def invoke(self, load_data_windows: bool = True):
 
+        # Reset abort state and mark as generating
+        self.should_abort_invocation = False
+        self.is_generating = True
+
         # Refresh data windows if enabled
         if load_data_windows:
             self._refresh_data_windows()
 
         accumulated_response = None
 
-        # Start the async stream!
-        response_generator = self.prompt_chain.astream({"messages": self.messages})
+        try:
+            response_generator = self.prompt_chain.astream({"messages": self.messages})
+        except Exception as e:
+            self.is_generating = False
+            raise
 
-        # Iterate through stream chunks with async for
-        async for chunk in response_generator:
+        chunk_count = 0
 
+        try:
+          async for chunk in response_generator:
+            chunk_count += 1
             accumulated_response = chunk if accumulated_response is None else accumulated_response + chunk
 
             # 1.) Content - only enter the content path if there is actual text.
@@ -100,11 +121,19 @@ class TokenStreamingAgentChat:
                     yield first_text
 
                     async for res_chunk in response_generator:
+                        if self.should_abort_invocation:
+                            break
                         accumulated_response = accumulated_response + res_chunk
                         chunk_text = normalize_content(res_chunk.content)
                         if chunk_text:
                             ai_message += chunk_text
                             yield chunk_text
+
+                    self.is_generating = False
+
+                    if self.should_abort_invocation:
+                        self.should_abort_invocation = False
+                        return
 
                     if on_response_cb:
                         on_response_cb(accumulated_response)
@@ -134,12 +163,17 @@ class TokenStreamingAgentChat:
 
                 return async_response_generator()
 
+        except Exception as e:
+            self.is_generating = False
+            raise
+
         # 2.) Tool Section - No text content was streamed.
         #     LangChain's chunk accumulation has already merged all tool_call_chunks
         #     into parsed tool_calls on the accumulated response, regardless of
         #     provider (OpenAI, Anthropic, reasoning models).
 
         if not accumulated_response or not accumulated_response.tool_calls:
+            self.is_generating = False
             return None
 
         if self.on_response:
