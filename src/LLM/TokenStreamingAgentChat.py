@@ -36,6 +36,7 @@ class TokenStreamingAgentChat:
         self.on_response = on_response
         self.is_generating = False
         self.should_abort_invocation = False
+        self.pending_client_side_tool_calls = None
 
         # Replace prompt arguments using explicit prompt_arg_names
         # Simple string find-and-replace - arg names can be any format (e.g., ARG_USER_NAME or {user_name})
@@ -56,9 +57,13 @@ class TokenStreamingAgentChat:
         if tools:
             tool_params_list = []
             self.name_to_tool = {}
+            self.name_to_tool_id = {}
             for tool in tools:
                 tool_params_list.append(tool.params)
-                self.name_to_tool[tool.params.__name__] = tool
+                tool_name = tool.params.__name__
+                self.name_to_tool[tool_name] = tool
+                if tool.tool_id:
+                    self.name_to_tool_id[tool_name] = tool.tool_id
             llm = llm.bind_tools(tool_params_list)
 
         # The chain to invoke
@@ -156,10 +161,11 @@ class TokenStreamingAgentChat:
                             response_metadata=accumulated_response.response_metadata,
                         ))
                         await self._process_tool_calls(accumulated_response.tool_calls)
-                        recursive_gen = await self.invoke(load_data_windows=True)
-                        if recursive_gen:
-                            async for token in recursive_gen:
-                                yield token
+                        if not self.pending_client_side_tool_calls:
+                            recursive_gen = await self.invoke(load_data_windows=True)
+                            if recursive_gen:
+                                async for token in recursive_gen:
+                                    yield token
 
                 return async_response_generator()
 
@@ -181,18 +187,33 @@ class TokenStreamingAgentChat:
 
         self.messages.append(self._chunk_to_ai_message(accumulated_response))
         await self._process_tool_calls(accumulated_response.tool_calls)
+        if self.pending_client_side_tool_calls:
+            self.is_generating = False
+            return None
         return await self.invoke(load_data_windows=True)
 
     async def _process_tool_calls(self, tool_calls):
-        """Execute tool calls and append ToolMessages to the conversation."""
+        """Execute tool calls and append ToolMessages to the conversation.
+        Client-side tools are not executed; they are stored in pending_client_side_tool_calls."""
+        client_side_calls = []
+
         for tool_call in tool_calls:
             tool_call_id = tool_call['id']
             tool_call_name = tool_call['name']
             tool_call_args = tool_call['args']
 
-            try:
-                tool = self.name_to_tool[tool_call_name]
+            tool = self.name_to_tool.get(tool_call_name)
 
+            # Skip client-side tools -- don't execute or add ToolMessage
+            if tool and tool.is_client_side_tool:
+                client_side_calls.append({
+                    "tool_call_id": tool_call_id,
+                    "tool_name": tool_call_name,
+                    "tool_input": tool_call_args,
+                })
+                continue
+
+            try:
                 if self.on_tool_call:
                     await self.on_tool_call(
                         id=tool_call_id,
@@ -229,6 +250,9 @@ class TokenStreamingAgentChat:
                 )
 
             self.messages.append(tool_message)
+
+        if client_side_calls:
+            self.pending_client_side_tool_calls = client_side_calls
 
     @staticmethod
     def _chunk_to_ai_message(chunk) -> AIMessage:

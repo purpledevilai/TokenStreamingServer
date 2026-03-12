@@ -36,8 +36,9 @@ async def add_message(connection_id: str, message: str):
     response_id = str(uuid.uuid4())
 
     # Stream tokens - now using async for since token_stream is an async generator
-    async for token in token_stream:
-        await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
+    if token_stream:
+        async for token in token_stream:
+            await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
 
     # Send stop token signal
     await connection.peer.call(method="on_stop_token", params={"response_id": response_id})
@@ -45,6 +46,16 @@ async def add_message(connection_id: str, message: str):
     # Save the new message to context 
     connection.context.messages = base_messages_to_dict_messages(connection.agent_chat.messages)
     Context.save_context(connection.context)
+
+    # Notify client of pending client-side tool calls
+    if agent.pending_client_side_tool_calls:
+        await connection.peer.call(
+            method="on_client_side_tool_calls",
+            params={
+                "tool_calls": agent.pending_client_side_tool_calls,
+                "response_id": response_id
+            }
+        )
 
     # Check if there are chat events to send
     if (agent.context.get("events")):

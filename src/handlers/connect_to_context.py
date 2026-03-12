@@ -124,8 +124,9 @@ async def send_first_message(connection: Connection):
 
     # Stream tokens from agent invocation - now using async for
     token_stream = await agent.invoke()
-    async for token in token_stream:
-        await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
+    if token_stream:
+        async for token in token_stream:
+            await connection.peer.call(method="on_token", params={"token": token, "response_id": response_id})
 
     # Send stop token signal
     await connection.peer.call(method="on_stop_token", params={"response_id": response_id})
@@ -133,3 +134,13 @@ async def send_first_message(connection: Connection):
     # Save the new message to context 
     connection.context.messages = base_messages_to_dict_messages(connection.agent_chat.messages)
     Context.save_context(connection.context)
+
+    # Notify client of pending client-side tool calls
+    if agent.pending_client_side_tool_calls:
+        await connection.peer.call(
+            method="on_client_side_tool_calls",
+            params={
+                "tool_calls": agent.pending_client_side_tool_calls,
+                "response_id": response_id
+            }
+        )
