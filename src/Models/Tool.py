@@ -27,6 +27,7 @@ class Tool(BaseModel):
     code: Optional[str] = None
     pass_context: bool = False
     is_async: bool = False
+    is_client_side_tool: bool = False
     created_at: int
     updated_at: int
 
@@ -113,6 +114,16 @@ def get_agent_tool_with_id(tool_id: str) -> AgentTool:
         parameter_definition.parameters if parameter_definition else [],
         docstring=tool.description
     )
+
+    if tool.is_client_side_tool:
+        async def client_side_noop(**kwargs):
+            return ""
+        return AgentTool(
+            tool_id=tool_id,
+            params=params,
+            function=client_side_noop,
+            is_client_side_tool=True
+        )
 
     async def custom_code_lambda_invoke(**kwargs):
         # Use asyncio to run the blocking function in a thread pool
