@@ -15,34 +15,39 @@ async def connect_to_context(connection_id: str, context_id: str, access_token: 
     # Get the connection - used later
     connection = CONNECTIONS[connection_id]
 
-    # Set the user if access_token is provided
-    user = None
-    if access_token:
-        # Try API key authentication first
-        if APIKey.validate_api_key(access_token):
-            contents = APIKey.get_api_key_contents(access_token)
-            user = User.get_user(contents["user_id"])
-        else:
-            # Fall back to Cognito authentication
-            cognito_user = Cognito.get_user_from_cognito(access_token)
-            user = User.get_user(cognito_user.sub)
-        
+    # Require authentication. Public contexts can no longer be connected to
+    # without a token; an auto-minted client API key is issued at context
+    # creation time for public-agent flows.
+    if not access_token:
+        raise Exception("access_token required")
 
-    # Get the context id
-    if (context_id == None):
+    # Resolve the user and (if applicable) API key contents.
+    key_contents = None
+    user = None
+    if APIKey.validate_api_key(access_token):
+        key_contents = APIKey.get_api_key_contents(access_token)
+        user = User.get_user(key_contents["user_id"])
+    else:
+        cognito_user = Cognito.get_user_from_cognito(access_token)
+        user = User.get_user(cognito_user.sub)
+
+    if context_id is None:
         raise Exception("No context_id provided")
 
-    # Get the context and agent
-    context = None
-    agent = None
-    if (user):
-        # Private
-        context = Context.get_context_for_user(context_id, user.user_id)
-        agent = Agent.get_agent_for_user(context.agent_id, user)
+    # Load the context and agent. get_agent_for_user already resolves public agents.
+    context = Context.get_context(context_id)
+    agent = Agent.get_agent_for_user(context.agent_id, user)
+
+    # Authorization: if the API key is scoped to a client_id, it must match the
+    # context's client_id. Otherwise fall back to the classic user_id ownership
+    # check for backwards compatibility with older contexts / cognito callers.
+    key_client_id = (key_contents or {}).get("client_id")
+    if key_client_id:
+        if context.client_id != key_client_id:
+            raise Exception("API key client_id does not match context", 403)
     else:
-        # Public
-        context = Context.get_public_context(context_id)
-        agent = Agent.get_public_agent(context.agent_id)
+        if context.user_id != "public" and context.user_id != user.user_id:
+            raise Exception("Context does not belong to user", 403)
 
     # Context dict - passed to agent for events
     context_dict = context.model_dump()

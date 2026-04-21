@@ -92,7 +92,7 @@ Connects to a specific context and initializes the agent chat session. This must
   "method": "connect_to_context",
   "params": {
     "context_id": "uuid-of-context",
-    "access_token": "optional-jwt-token-or-api-key"
+    "access_token": "jwt-token-or-api-key"
   },
   "id": "request-id-123"
 }
@@ -100,10 +100,10 @@ Connects to a specific context and initializes the agent chat session. This must
 
 **Parameters:**
 - `context_id` (required): The UUID of the context to connect to
-- `access_token` (optional): 
-  - If provided, authenticates the user and allows access to private contexts
-  - Can be either a JWT token (Cognito) or an API key
-  - If omitted, only public contexts can be accessed
+- `access_token` (**required**): A Cognito access token or an Ajentify API key.
+  - **Breaking change:** required for all contexts, including public-agent ones. Use the `client_api_key` returned by `POST /context` when the context was created against a public agent.
+  - If the API key's JWT carries a `client_id` claim, it must match the context's `client_id`.
+  - Otherwise (Cognito user / legacy client key without a `client_id` claim), the server falls back to verifying the caller's `user_id` matches `context.user_id`.
 
 **Response:**
 ```json
@@ -618,7 +618,7 @@ If you send a request with an `id` and don't receive a response within a reasona
 
 ### Public Contexts
 
-For public contexts, you can omit the `access_token` parameter:
+Public contexts now also require an `access_token`. Use the `client_api_key` returned from `POST /context`:
 
 ```json
 {

@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta
+from typing import Optional
 import uuid
 from AWS.DynamoDB import get_item, put_item, delete_item
 from pydantic import BaseModel
@@ -16,8 +17,10 @@ class APIKey(BaseModel):
     valid: bool
     type: str  # "org" or "client"
     user_id: str  # For org tokens: same as api_key_id, For client tokens: the creator's user_id
+    client_id: Optional[str] = None  # Client tokens only: scopes the key to a specific org-owned client
     created_at: int
     updated_at: int
+    expires_at: Optional[int] = None  # DynamoDB TTL; null means no automatic cleanup
 
 def create_org_api_key(org_id: str) -> APIKey:
     """
@@ -54,38 +57,52 @@ def create_org_api_key(org_id: str) -> APIKey:
     put_item(API_KEYS_TABLE_NAME, api_key.model_dump())
     return api_key
 
-def create_client_api_key(org_id: str, user_id: str) -> APIKey:
+def create_client_api_key(
+    org_id: str,
+    user_id: str,
+    client_id: Optional[str] = None,
+    expires_in: timedelta = timedelta(minutes=2),
+) -> APIKey:
     """
-    Create a client token with 2-minute expiration.
-    user_id is inherited from the creator (org token or cognito user).
+    Create a client token.
+
+    - ``user_id`` is inherited from the creator (org token or cognito user).
+    - ``client_id`` (optional) scopes the token to a specific org-owned client.
+    - ``expires_in`` controls both the JWT exp claim and the DynamoDB ``expires_at`` TTL attr.
     """
     api_key_id = str(uuid.uuid4())
-    
-    # Generate JWT with 2-minute expiration
+
+    jwt_contents = {
+        "api_key_id": api_key_id,
+        "org_id": org_id,
+        "type": "client",
+        "user_id": user_id,
+    }
+    if client_id is not None:
+        jwt_contents["client_id"] = client_id
+
     token = generate_jwt(
         secret=JWT_SECRET,
-        contents={
-            "api_key_id": api_key_id,
-            "org_id": org_id,
-            "type": "client",
-            "user_id": user_id  # Inherited from creator
-        },
-        expires_in=timedelta(minutes=2)
+        contents=jwt_contents,
+        expires_in=expires_in,
     )
-    
+
     created_at = int(datetime.now().timestamp())
-    
+    expires_at = int((datetime.now() + expires_in).timestamp())
+
     api_key = APIKey(
         api_key_id=api_key_id,
         org_id=org_id,
         token=token,
         valid=True,
         type="client",
-        user_id=user_id,  # From creator
+        user_id=user_id,
+        client_id=client_id,
         created_at=created_at,
-        updated_at=created_at
+        updated_at=created_at,
+        expires_at=expires_at,
     )
-    
+
     put_item(API_KEYS_TABLE_NAME, api_key.model_dump())
     return api_key
 

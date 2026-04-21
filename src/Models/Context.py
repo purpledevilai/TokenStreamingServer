@@ -27,6 +27,8 @@ class Context(BaseModel):
     additional_agent_tools: Optional[list[str]] = []
     async_tool_response_queue: Optional[list[dict]] = []
     model_id: Optional[str] = None
+    client_id: Optional[str] = None
+    expires_at: Optional[int] = None
 
 class InitializeTool(BaseModel):
     tool_id: str
@@ -193,7 +195,7 @@ def create_context(
         
         context.messages = base_messages_to_dict_messages(initialization_messages)
 
-    put_item(CONTEXTS_TABLE_NAME, context.model_dump())
+    put_item(CONTEXTS_TABLE_NAME, context.model_dump(exclude_none=True))
     return context
 
 
@@ -219,7 +221,8 @@ def get_public_context(context_id: str) -> Context:
 
 def save_context(context: Context) -> None:
     context.updated_at = int(datetime.timestamp(datetime.now()))
-    put_item(CONTEXTS_TABLE_NAME, context.model_dump())
+    # exclude_none avoids sending NULL for GSI-indexed attrs (client_id).
+    put_item(CONTEXTS_TABLE_NAME, context.model_dump(exclude_none=True))
 
 def get_contexts_by_user_id(user_id: str) -> list[Context]:
     items = get_latest_items_by_index(CONTEXTS_TABLE_NAME, "user_id-updated_at-index", "user_id", user_id, 50)
