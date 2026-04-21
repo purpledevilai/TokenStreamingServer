@@ -22,11 +22,26 @@ async def connect_to_context(connection_id: str, context_id: str, access_token: 
         raise Exception("access_token required")
 
     # Resolve the user and (if applicable) API key contents.
+    #
+    # Note: public-agent contexts carry ``user_id="public"`` and the auto-minted
+    # client API key inherits that value — there is no row in the users table
+    # for "public", so we synthesize a stub User in that case. All downstream
+    # authorization either short-circuits on ``agent.is_public`` or relies on
+    # the key's ``client_id`` claim, so the stub's empty org list is safe.
     key_contents = None
     user = None
     if APIKey.validate_api_key(access_token):
         key_contents = APIKey.get_api_key_contents(access_token)
-        user = User.get_user(key_contents["user_id"])
+        key_user_id = key_contents["user_id"]
+        if key_user_id == "public":
+            user = User.User(
+                user_id="public",
+                organizations=[],
+                created_at=0,
+                updated_at=0,
+            )
+        else:
+            user = User.get_user(key_user_id)
     else:
         cognito_user = Cognito.get_user_from_cognito(access_token)
         user = User.get_user(cognito_user.sub)
